@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.kwork_token
+*.egg-info/
+dist/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+uv.lock
+CLAUDE.md
