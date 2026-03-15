@@ -2,6 +2,8 @@
   <img src="assets/banner.svg" alt="kwork-mcp" width="100%">
 </p>
 
+[![CI](https://github.com/simonether/kwork-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/simonether/kwork-mcp/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/simonether/kwork-mcp/graph/badge.svg)](https://codecov.io/gh/simonether/kwork-mcp)
 [![PyPI](https://img.shields.io/pypi/v/kwork-mcp?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/kwork-mcp/)
 [![Downloads](https://img.shields.io/pypi/dm/kwork-mcp?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/kwork-mcp/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
