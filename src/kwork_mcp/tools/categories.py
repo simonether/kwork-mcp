@@ -35,7 +35,13 @@ def register(mcp: FastMCP) -> None:
         async with api_guard("get_favorite_categories"):
             data = await client.favorite_categories()
 
-        categories = data.get("categories", data.get("data", []))
+        response = data.get("response") or data
+        if isinstance(response, dict):
+            categories = response.get("categories") or response.get("data") or []
+        elif isinstance(response, list):
+            categories = response
+        else:
+            categories = []
         if not categories:
             return "Избранных категорий нет."
 

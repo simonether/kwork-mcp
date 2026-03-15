@@ -88,7 +88,7 @@ def register(mcp: FastMCP) -> None:
         await session.rate_limit()
 
         async with api_guard("получение проекта"):
-            result = await client.project(id=project_id)
+            result = await client.project(id=project_id, use_token=True)
 
         resp = result.get("response", result)
         if isinstance(resp, dict):

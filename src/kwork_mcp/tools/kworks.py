@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -25,9 +26,17 @@ def _format_kwork_brief(kwork: dict[str, Any]) -> str:
 
 
 def _format_kwork_detail(data: dict[str, Any]) -> str:
-    kwork = data.get("response") or data.get("kwork") or data
+    response = data.get("response") or data
+    # Response may wrap kwork under a "kwork" key or be the kwork itself
+    if isinstance(response, dict) and "kwork" in response and isinstance(response["kwork"], dict):
+        kwork = response["kwork"]
+    elif isinstance(response, dict):
+        kwork = response
+    else:
+        kwork = data
+
     kid = kwork.get("id", "—")
-    name = kwork.get("title") or kwork.get("name") or "—"
+    name = kwork.get("title") or kwork.get("name") or kwork.get("lang") or "—"
     price = kwork.get("price") or "—"
     category = kwork.get("category_name") or kwork.get("category") or "—"
     raw_status = kwork.get("status") or kwork.get("status_name") or "—"
@@ -48,6 +57,11 @@ def _format_kwork_detail(data: dict[str, Any]) -> str:
         f"Количество отзывов: {reviews}",
         f"Описание: {description}",
     ]
+
+    # Fallback: if most fields are empty, include raw JSON for debugging
+    if name == "—" and price == "—" and description == "—":
+        lines.append(f"\nСырые данные:\n{json.dumps(response, ensure_ascii=False, indent=2)}")
+
     return "\n".join(lines)
 
 
@@ -69,7 +83,7 @@ def register(mcp: FastMCP) -> None:
         lines = ["Мои кворки:"]
         found_any = False
 
-        # Response may be a dict with status keys or a list
+        # Response may be a dict with status keys or a list of status groups
         if isinstance(response, dict):
             for status_key, display_name in _KWORK_STATUS_NAMES.items():
                 kworks = response.get(status_key) or response.get(f"{status_key}_kworks") or []
@@ -85,7 +99,7 @@ def register(mcp: FastMCP) -> None:
                             lines.append(_format_kwork_brief(kwork))
                         else:
                             lines.append(f"    {kwork}")
-            # Also handle unexpected keys
+            # Handle unexpected keys
             if not found_any:
                 for key, value in response.items():
                     if isinstance(value, list) and value:
@@ -98,29 +112,22 @@ def register(mcp: FastMCP) -> None:
                             else:
                                 lines.append(f"    {kwork}")
         elif isinstance(response, list):
+            # pykwork returns list of status groups:
+            # [{"id": 7, "name": "Активные", "kworks": [{...}, ...], "kworks_count": 1}, ...]
             for group in response:
                 if not isinstance(group, dict):
-                    lines.append(f"  {group}")
-                    found_any = True
                     continue
-                # pykwork returns list of status groups: {"id": 7, "name": "Активные", "kworks": [...]}
-                group_kworks = group.get("kworks") or []
-                if isinstance(group_kworks, list) and group_kworks:
-                    found_any = True
-                    label = group.get("name") or _KWORK_STATUS_NAMES.get(
-                        str(group.get("id", "")), str(group.get("id", "?"))
-                    )
-                    lines.append(f"\n  {label}:")
-                    for kwork in group_kworks:
-                        if isinstance(kwork, dict):
-                            lines.append(_format_kwork_brief(kwork))
-                        else:
-                            lines.append(f"    {kwork}")
-                elif not group_kworks and not group.get("kworks_count"):
-                    # Flat list of kwork dicts (not groups)
-                    if "title" in group or "name" in group:
-                        found_any = True
-                        lines.append(_format_kwork_brief(group))
+                group_kworks = group.get("kworks")
+                if not isinstance(group_kworks, list) or not group_kworks:
+                    continue
+                found_any = True
+                label = group.get("name") or str(group.get("id", "?"))
+                lines.append(f"\n  {label}:")
+                for kwork in group_kworks:
+                    if isinstance(kwork, dict):
+                        lines.append(_format_kwork_brief(kwork))
+                    else:
+                        lines.append(f"    {kwork}")
 
         if not found_any:
             return "Кворков нет."
@@ -134,20 +141,20 @@ def register(mcp: FastMCP) -> None:
         client = await session.ensure_client()
         await session.rate_limit()
         async with api_guard("get_kwork_details"):
-            data = await client.get_kwork_details(id=kwork_id)
+            data = await client.get_kwork_details(id=kwork_id, use_token=True)
 
         return _format_kwork_detail(data)
 
     @mcp.tool()
     async def start_kwork(kwork_id: int, ctx: Context) -> str:
-        """Активировать (возобновить) приостановленный кворк."""
+        """Активировать приостановленный кворк. Кворк станет виден покупателям."""
         session: KworkSessionManager = ctx.request_context.lifespan_context
         client = await session.ensure_client()
         await session.rate_limit()
         async with api_guard("start_kwork"):
             data = await client.start_kwork(kwork_id=kwork_id)
 
-        if data.get("success") or data.get("status") == "ok":
+        if data.get("success"):
             return f"Кворк #{kwork_id} активирован."
 
         error = data.get("error") or data.get("message") or data
@@ -155,14 +162,14 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def pause_kwork(kwork_id: int, ctx: Context) -> str:
-        """Приостановить активный кворк. Кворк перестанет отображаться покупателям."""
+        """Приостановить кворк. Кворк перестанет отображаться покупателям."""
         session: KworkSessionManager = ctx.request_context.lifespan_context
         client = await session.ensure_client()
         await session.rate_limit()
         async with api_guard("pause_kwork"):
             data = await client.pause_kwork(kwork_id=kwork_id)
 
-        if data.get("success") or data.get("status") == "ok":
+        if data.get("success"):
             return f"Кворк #{kwork_id} приостановлен."
 
         error = data.get("error") or data.get("message") or data

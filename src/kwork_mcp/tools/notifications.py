@@ -19,7 +19,13 @@ def register(mcp: FastMCP) -> None:
         async with api_guard("list_notifications"):
             data = await client.get_notifications()
 
-        notifications = data.get("notifications", data.get("data", []))
+        response = data.get("response") or data
+        if isinstance(response, dict):
+            notifications = response.get("notifications") or response.get("data") or []
+        elif isinstance(response, list):
+            notifications = response
+        else:
+            notifications = []
         if not notifications:
             return "Уведомлений нет."
 

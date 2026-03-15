@@ -21,7 +21,7 @@ def register(mcp: FastMCP) -> None:
         await session.rate_limit()
 
         async with api_guard("список предложений"):
-            result = await client.offers()
+            result = await client.offers(use_token=True)
 
         resp = result.get("response", result)
 
@@ -54,7 +54,7 @@ def register(mcp: FastMCP) -> None:
         await session.rate_limit()
 
         async with api_guard("получение предложения"):
-            result = await client.offer(id=offer_id)
+            result = await client.offer(id=offer_id, use_token=True)
 
         resp = result.get("response", result)
 
@@ -144,6 +144,6 @@ def register(mcp: FastMCP) -> None:
         await session.rate_limit()
 
         async with api_guard("удаление предложения"):
-            await client.delete_offer(id=offer_id)
+            await client.delete_offer(id=offer_id, use_token=True)
 
         return f"Предложение #{offer_id} удалено."
