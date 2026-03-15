@@ -124,10 +124,13 @@ def register(mcp: FastMCP) -> None:
                 label = group.get("name") or str(group.get("id", "?"))
                 lines.append(f"\n  {label}:")
                 for kwork in group_kworks:
-                    if isinstance(kwork, dict):
-                        lines.append(_format_kwork_brief(kwork))
-                    else:
+                    if not isinstance(kwork, dict):
                         lines.append(f"    {kwork}")
+                        continue
+                    # Skip nested status groups (they have "kworks" key)
+                    if "kworks" in kwork or "kworks_count" in kwork:
+                        continue
+                    lines.append(_format_kwork_brief(kwork))
 
         if not found_any:
             return "Кворков нет."
