@@ -143,8 +143,10 @@ def register(mcp: FastMCP) -> None:
         session: KworkSessionManager = ctx.request_context.lifespan_context
         client = await session.ensure_client()
         await session.rate_limit()
+
+        # getKworkDetails returns minimal data; getKworkDetailsExtra returns full info
         async with api_guard("get_kwork_details"):
-            data = await client.get_kwork_details(id=kwork_id, use_token=True)
+            data = await client.get_kwork_details_extra(id=kwork_id, use_token=True)
 
         return _format_kwork_detail(data)
 

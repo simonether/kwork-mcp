@@ -55,55 +55,56 @@ def _format_order_brief(order: dict[str, Any]) -> str:
     return f"  #{oid} | {_order_title(order)} | {_order_status(order)} | {price} руб. | покупатель: {_buyer_name(order)}{suffix}"
 
 
-def _extract_order(data: dict[str, Any]) -> dict[str, Any]:
-    """Extract the order dict from an API response, handling nesting variants."""
-    response = data.get("response") or data
-    if isinstance(response, dict):
-        # getOrderDetails may nest under "order" key
-        if "order" in response and isinstance(response["order"], dict):
-            return response["order"]
-        # Or response IS the order (has "id" and order-like fields)
-        if "id" in response:
-            return response
-    return data
+_STAGE_STATUS_MAP: dict[int, str] = {
+    1: "ожидает",
+    2: "в работе",
+    3: "завершён",
+}
 
 
 def _format_order_detail(data: dict[str, Any]) -> str:
-    order = _extract_order(data)
+    response = data.get("response") or data
 
-    oid = order.get("id", "—")
-    price = order.get("price") or order.get("total_price") or "—"
-    currency = order.get("currency", "руб.")
-    description = order.get("description") or order.get("instruction") or order.get("project") or "—"
-    deadline = _fmt_ts(order.get("deadline") or order.get("date_must_be_done"))
-    created = _fmt_ts(order.get("time_added") or order.get("date_created") or order.get("created_at"))
+    # getOrderDetails returns {details, stages, key_tracks} — supplementary info
+    details = response.get("details") if isinstance(response, dict) else None
+    stages = response.get("stages") if isinstance(response, dict) else None
+    key_tracks = response.get("key_tracks") if isinstance(response, dict) else None
 
-    lines = [
-        f"Заказ #{oid}",
-        f"Кворк: {_order_title(order)}",
-        f"Статус: {_order_status(order)}",
-        f"Цена: {price} {currency}",
-        f"Покупатель: {_buyer_name(order)}",
-        f"Срок сдачи: {deadline}",
-        f"Дата создания: {created}",
-    ]
+    lines: list[str] = []
 
-    time_left = order.get("time_left")
-    if time_left:
-        lines.append(f"Осталось: {time_left}")
+    # Description from details
+    if isinstance(details, dict):
+        desc = details.get("description") or "—"
+        lines.append(f"Описание: {desc}")
 
-    if order.get("has_stages"):
-        lines.append(f"Этапы: {order.get('stages_price', '—')} / {order.get('full_stages_price', '—')} {currency}")
+    # Stages
+    if isinstance(stages, list) and stages:
+        lines.append(f"\nЭтапы ({len(stages)}):")
+        for s in stages:
+            if not isinstance(s, dict):
+                continue
+            num = s.get("number", "?")
+            title = s.get("title", "—")
+            status = _STAGE_STATUS_MAP.get(s.get("status", -1), str(s.get("status", "?")))
+            price = s.get("price", "?")
+            progress = s.get("progress")
+            progress_str = f" | {progress}%" if progress is not None else ""
+            lines.append(f"  {num}. {title} — {status} | {price} руб.{progress_str}")
 
-    progress = order.get("progress")
-    if progress is not None:
-        lines.append(f"Прогресс: {progress}%")
+    # Key tracks (timeline)
+    if isinstance(key_tracks, list) and key_tracks:
+        lines.append(f"\nИстория ({len(key_tracks)}):")
+        for track in key_tracks[:10]:  # Last 10 events
+            if not isinstance(track, dict):
+                continue
+            title = track.get("title", "—")
+            ts = _fmt_ts(track.get("created_at"))
+            lines.append(f"  [{ts}] {title}")
+        if len(key_tracks) > 10:
+            lines.append(f"  ... и ещё {len(key_tracks) - 10}")
 
-    lines.append(f"Описание: {description}")
-
-    # Fallback: if most fields are empty, show raw JSON
-    if oid == "—" and _order_title(order) == "—":
-        lines.append(f"\nСырые данные:\n{json.dumps(data.get('response', data), ensure_ascii=False, indent=2)}")
+    if not lines:
+        return f"Детали заказа:\n{json.dumps(response, ensure_ascii=False, indent=2)}"
 
     return "\n".join(lines)
 
