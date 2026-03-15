@@ -86,7 +86,7 @@ def register(mcp: FastMCP) -> None:
         client = await session.ensure_client()
         await session.rate_limit()
         async with api_guard("get_order_details"):
-            data = await client.get_order_details(order_id=order_id)
+            data = await client.get_order_details(orderId=order_id)
 
         return _format_order_detail(data)
 

@@ -98,12 +98,29 @@ def register(mcp: FastMCP) -> None:
                             else:
                                 lines.append(f"    {kwork}")
         elif isinstance(response, list):
-            found_any = bool(response)
-            for kwork in response:
-                if isinstance(kwork, dict):
-                    lines.append(_format_kwork_brief(kwork))
-                else:
-                    lines.append(f"  {kwork}")
+            for group in response:
+                if not isinstance(group, dict):
+                    lines.append(f"  {group}")
+                    found_any = True
+                    continue
+                # pykwork returns list of status groups: {"id": 7, "name": "Активные", "kworks": [...]}
+                group_kworks = group.get("kworks") or []
+                if isinstance(group_kworks, list) and group_kworks:
+                    found_any = True
+                    label = group.get("name") or _KWORK_STATUS_NAMES.get(
+                        str(group.get("id", "")), str(group.get("id", "?"))
+                    )
+                    lines.append(f"\n  {label}:")
+                    for kwork in group_kworks:
+                        if isinstance(kwork, dict):
+                            lines.append(_format_kwork_brief(kwork))
+                        else:
+                            lines.append(f"    {kwork}")
+                elif not group_kworks and not group.get("kworks_count"):
+                    # Flat list of kwork dicts (not groups)
+                    if "title" in group or "name" in group:
+                        found_any = True
+                        lines.append(_format_kwork_brief(group))
 
         if not found_any:
             return "Кворков нет."
@@ -117,7 +134,7 @@ def register(mcp: FastMCP) -> None:
         client = await session.ensure_client()
         await session.rate_limit()
         async with api_guard("get_kwork_details"):
-            data = await client.get_kwork_details(kwork_id=kwork_id)
+            data = await client.get_kwork_details(id=kwork_id)
 
         return _format_kwork_detail(data)
 
