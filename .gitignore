@@ -10,3 +10,4 @@ dist/
 .mypy_cache/
 uv.lock
 CLAUDE.md
+.superpowers/

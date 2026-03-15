@@ -1,4 +1,6 @@
-# kwork-mcp
+<p align="center">
+  <img src="assets/banner.svg" alt="kwork-mcp" width="800">
+</p>
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
