@@ -24,7 +24,7 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) (via [MCP Python SDK](ht
 ### Install
 
 ```bash
-pip install kwork-mcp
+uv add kwork-mcp
 ```
 
 Or from source:
