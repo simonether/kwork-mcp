@@ -27,41 +27,42 @@ def _format_kwork_brief(kwork: dict[str, Any]) -> str:
 
 def _format_kwork_detail(data: dict[str, Any]) -> str:
     response = data.get("response") or data
-    # Response may wrap kwork under a "kwork" key or be the kwork itself
-    if isinstance(response, dict) and "kwork" in response and isinstance(response["kwork"], dict):
-        kwork = response["kwork"]
-    elif isinstance(response, dict):
-        kwork = response
-    else:
-        kwork = data
+    if not isinstance(response, dict):
+        return json.dumps(data, ensure_ascii=False, indent=2)
 
-    kid = kwork.get("id", "—")
-    name = kwork.get("title") or kwork.get("name") or kwork.get("lang") or "—"
-    price = kwork.get("price") or "—"
-    category = kwork.get("category_name") or kwork.get("category") or "—"
-    raw_status = kwork.get("status") or kwork.get("status_name") or "—"
-    status = _KWORK_STATUS_NAMES.get(str(raw_status), str(raw_status))
-    orders = kwork.get("orders_count") or kwork.get("order_count") or 0
-    reviews = kwork.get("reviews_count") or kwork.get("review_count") or 0
-    description = kwork.get("description") or "—"
-    days = kwork.get("days") or kwork.get("delivery_days") or "—"
+    lines: list[str] = []
 
-    lines = [
-        f"Кворк #{kid}",
-        f"Название: {name}",
-        f"Цена: {price} руб.",
-        f"Категория: {category}",
-        f"Статус: {status}",
-        f"Срок выполнения: {days} дн.",
-        f"Количество заказов: {orders}",
-        f"Количество отзывов: {reviews}",
-        f"Описание: {description}",
-    ]
+    good = response.get("goodReviews", 0)
+    bad = response.get("badReviews", 0)
+    reviews_count = response.get("reviews_count", 0)
+    faq_count = response.get("frequently_asked_questions_count", 0)
+    not_avail = response.get("not_available_for_company")
 
-    # Fallback: if most fields are empty, include raw JSON for debugging
-    if name == "—" and price == "—" and description == "—":
-        lines.append(f"\nСырые данные:\n{json.dumps(response, ensure_ascii=False, indent=2)}")
+    lines.append(f"Отзывы: {reviews_count} (положительных: {good}, отрицательных: {bad})")
+    if faq_count:
+        lines.append(f"Часто задаваемых вопросов: {faq_count}")
+    if not_avail is not None:
+        lines.append(f"Недоступен для компаний: {'да' if not_avail else 'нет'}")
 
+    similar = response.get("similar_kworks") or []
+    if similar:
+        lines.append(f"\nПохожие кворки ({len(similar)}):")
+        for kw in similar[:5]:
+            if not isinstance(kw, dict):
+                continue
+            title = kw.get("title", "—")
+            price = kw.get("price", "?")
+            worker = kw.get("worker", {})
+            username = worker.get("username", "?") if isinstance(worker, dict) else "?"
+            rating = worker.get("rating", "?") if isinstance(worker, dict) else "?"
+            lines.append(f"  #{kw.get('id', '?')} | {title} | {price} руб. | @{username} ({rating})")
+        if len(similar) > 5:
+            lines.append(f"  ... и ещё {len(similar) - 5}")
+
+    if not lines:
+        return json.dumps(response, ensure_ascii=False, indent=2)
+
+    lines.append("\nПримечание: название, цена и описание кворка доступны через list_my_kworks.")
     return "\n".join(lines)
 
 
