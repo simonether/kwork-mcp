@@ -144,15 +144,22 @@ def register(mcp: FastMCP) -> None:
         client = await session.ensure_client()
         await session.rate_limit()
 
+        # exchangeInfo returns a flat JSON without {"success": true} wrapper,
+        # so we bypass pykwork's _handle_json_payload and make the raw request
+        # ourselves, reusing the pykwork AUTH_HEADER constant.
+        from kwork.api import AUTH_HEADER
+
         async with api_guard("статистика биржи"):
-            result = await client.exchange_info()
+            token = client._token  # already authenticated
+            resp = await client.session.post(
+                "https://api.kwork.ru/exchangeInfo",
+                headers={"Authorization": AUTH_HEADER},
+                data={"token": token},
+            )
+            data: dict = await resp.json(content_type=None)
 
-        resp = result.get("response", result)
-        if isinstance(resp, dict):
-            lines = ["Статистика биржи Kwork:\n"]
-            for key, value in resp.items():
-                if isinstance(value, (str, int, float, bool)):
-                    lines.append(f"  {key}: {value}")
-            return "\n".join(lines)
-
-        return f"Статистика биржи:\n{json.dumps(resp, ensure_ascii=False, indent=2)}"
+        lines = ["Статистика биржи Kwork:\n"]
+        for key, value in data.items():
+            if isinstance(value, (str, int, float, bool)):
+                lines.append(f"  {key}: {value}")
+        return "\n".join(lines)
