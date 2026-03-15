@@ -2,6 +2,8 @@
   <img src="assets/banner.svg" alt="kwork-mcp" width="100%">
 </p>
 
+[![PyPI](https://img.shields.io/pypi/v/kwork-mcp?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/kwork-mcp/)
+[![Downloads](https://img.shields.io/pypi/dm/kwork-mcp?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/kwork-mcp/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -20,6 +22,12 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) (via [MCP Python SDK](ht
 - Kwork account (login/password or API token)
 
 ### Install
+
+```bash
+pip install kwork-mcp
+```
+
+Or from source:
 
 ```bash
 git clone https://github.com/simonether/kwork-mcp.git
