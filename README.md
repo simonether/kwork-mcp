@@ -17,14 +17,17 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) (via [MCP Python SDK](ht
 
 ### Requirements
 
-- Python 3.12+
 - [uv](https://docs.astral.sh/uv/)
 - Kwork account (login/password or API token)
 
 ### Install
 
+When using `uv` no specific installation is needed. We will use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run kwork-mcp.
+
+Alternatively, install via pip:
+
 ```bash
-uv add kwork-mcp
+pip install kwork-mcp
 ```
 
 Or from source:
@@ -36,12 +39,6 @@ uv sync
 ```
 
 ### Configure
-
-Copy `.env.example` to `.env` and fill in your credentials:
-
-```bash
-cp .env.example .env
-```
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -68,8 +65,8 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "kwork": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/kwork-mcp", "kwork-mcp"],
+      "command": "uvx",
+      "args": ["kwork-mcp"],
       "env": {
         "KWORK_LOGIN": "your_login",
         "KWORK_PASSWORD": "your_password"
@@ -82,13 +79,34 @@ Add to `claude_desktop_config.json`:
 ### Claude Code
 
 ```bash
-claude mcp add kwork -- uv run --directory /path/to/kwork-mcp kwork-mcp
+claude mcp add kwork -e KWORK_LOGIN=your_login -e KWORK_PASSWORD=your_password -- uvx kwork-mcp
+```
+
+### VS Code
+
+Add to `.vscode/mcp.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "kwork": {
+        "command": "uvx",
+        "args": ["kwork-mcp"],
+        "env": {
+          "KWORK_LOGIN": "your_login",
+          "KWORK_PASSWORD": "your_password"
+        }
+      }
+    }
+  }
+}
 ```
 
 ### stdio
 
 ```bash
-uv run kwork-mcp
+uvx kwork-mcp
 ```
 
 ## 🛠 Tools
