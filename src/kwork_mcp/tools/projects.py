@@ -1,30 +1,24 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 
 from kwork_mcp.errors import api_guard
 from kwork_mcp.session import KworkSessionManager
+from kwork_mcp.utils import (
+    ANNO_READ,
+    format_date,
+    truncate,
+    unwrap_response,
+    validate_not_empty,
+    validate_page,
+    validate_positive_id,
+)
 
 
-def _fmt_date(ts: int | None) -> str:
-    if not ts:
-        return "—"
-    return datetime.fromtimestamp(ts, tz=UTC).strftime("%d.%m.%Y")
-
-
-def _truncate(text: str | None, limit: int = 200) -> str:
-    if not text:
-        return "—"
-    text = text.replace("\n", " ").strip()
-    if len(text) <= limit:
-        return text
-    return text[:limit].rstrip() + "..."
-
-
-def _fmt_project_line(p) -> str:  # type: ignore[no-untyped-def]
+def _fmt_project_line(p: Any) -> str:
     budget = f"{p.price} руб." if p.price else "не указан"
     max_price = f" (до {p.possible_price_limit} руб.)" if p.possible_price_limit else ""
     offers = p.offers if p.offers is not None else "?"
@@ -32,14 +26,14 @@ def _fmt_project_line(p) -> str:  # type: ignore[no-untyped-def]
     return (
         f"[ID {p.id}] {p.title or '—'}\n"
         f"  Бюджет: {budget}{max_price} | Предложений: {offers} | Найм: {hiring}\n"
-        f"  Дата: {_fmt_date(p.date_confirm)}\n"
-        f"  {_truncate(p.description)}"
+        f"  Дата: {format_date(p.date_confirm)}\n"
+        f"  {truncate(p.description)}"
     )
 
 
 def register(mcp: FastMCP) -> None:
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def list_projects(
         ctx: Context,
         category_id: int | None = None,
@@ -52,16 +46,23 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Список проектов на бирже Kwork с фильтрацией.
 
+        Когда использовать: для поиска подходящих проектов на бирже.
+        Возвращает: список проектов с бюджетом, количеством предложений и описанием.
+        Связанные: get_project — подробности проекта, submit_offer — отправить предложение.
+
         Фильтры: категория, бюджет (от/до), процент найма, макс. предложений,
         текстовый поиск. Без фильтров — проекты из избранных категорий.
         """
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        validate_page(page)
+        if category_id is not None:
+            validate_positive_id(category_id, "category_id")
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
         categories: list[int] = [category_id] if category_id is not None else []
 
-        async with api_guard("список проектов"):
+        async with api_guard("список проектов", session=session):
             projects = await client.get_projects(
                 categories_ids=categories,
                 price_from=price_from,
@@ -80,17 +81,23 @@ def register(mcp: FastMCP) -> None:
             lines.append(_fmt_project_line(p))
         return "\n\n".join(lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def get_project(project_id: int, ctx: Context) -> str:
-        """Подробная информация о проекте на бирже Kwork по его ID."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Подробная информация о проекте на бирже Kwork по его ID.
+
+        Когда использовать: для изучения конкретного проекта перед отправкой предложения.
+        Возвращает: название, статус, заказчик, бюджет, описание, количество предложений.
+        Связанные: submit_offer — отправить предложение на проект.
+        """
+        validate_positive_id(project_id, "project_id")
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
-        async with api_guard("получение проекта"):
+        async with api_guard("получение проекта", session=session):
             result = await client.project(id=project_id, use_token=True)
 
-        resp = result.get("response", result)
+        resp = unwrap_response(result)
         if isinstance(resp, dict):
             title = resp.get("name") or resp.get("title") or "—"
             desc = resp.get("description") or "—"
@@ -100,7 +107,7 @@ def register(mcp: FastMCP) -> None:
             offers = resp.get("offers") or resp.get("user_offers_count") or 0
             hiring = resp.get("user_hired_percent")
             hiring_str = f"{hiring}%" if hiring is not None else "—"
-            date = _fmt_date(resp.get("date_confirm"))
+            date = format_date(resp.get("date_confirm"))
 
             return (
                 f"Проект #{project_id}\n"
@@ -115,14 +122,21 @@ def register(mcp: FastMCP) -> None:
 
         return f"Проект #{project_id}:\n{json.dumps(resp, ensure_ascii=False, indent=2)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def search_projects(query: str, ctx: Context, page: int = 1) -> str:
-        """Поиск проектов на бирже Kwork по текстовому запросу."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Поиск проектов на бирже Kwork по текстовому запросу.
+
+        Когда использовать: для поиска проектов по ключевым словам.
+        Возвращает: список найденных проектов с бюджетом и описанием.
+        Связанные: list_projects — расширенная фильтрация, get_project — подробности.
+        """
+        validate_not_empty(query, "query")
+        validate_page(page)
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
-        async with api_guard("поиск проектов"):
+        async with api_guard("поиск проектов", session=session):
             projects = await client.get_projects(
                 categories_ids=[],
                 query=query,
@@ -137,26 +151,19 @@ def register(mcp: FastMCP) -> None:
             lines.append(_fmt_project_line(p))
         return "\n\n".join(lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def get_exchange_info(ctx: Context) -> str:
-        """Общая статистика биржи Kwork: количество проектов, категории, лимиты."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
-        client = await session.ensure_client()
+        """Общая статистика биржи Kwork: количество проектов, категории, лимиты.
+
+        Когда использовать: для получения общей информации о бирже перед работой с проектами.
+        Возвращает: статистику биржи в виде ключ-значение.
+        Связанные: list_projects — список проектов, list_categories — дерево категорий.
+        """
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         await session.rate_limit()
 
-        # exchangeInfo returns a flat JSON without {"success": true} wrapper,
-        # so we bypass pykwork's _handle_json_payload and make the raw request
-        # ourselves, reusing the pykwork AUTH_HEADER constant.
-        from kwork.api import AUTH_HEADER
-
-        async with api_guard("статистика биржи"):
-            token = client._token  # already authenticated
-            resp = await client.session.post(
-                "https://api.kwork.ru/exchangeInfo",
-                headers={"Authorization": AUTH_HEADER},
-                data={"token": token},
-            )
-            data: dict = await resp.json(content_type=None)
+        async with api_guard("статистика биржи", session=session):
+            data = await session.get_exchange_info()
 
         lines = ["Статистика биржи Kwork:\n"]
         for key, value in data.items():

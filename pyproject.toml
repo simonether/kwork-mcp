@@ -1,6 +1,6 @@
 [project]
 name = "kwork-mcp"
-version = "0.1.7"
+version = "0.2.0b1"
 description = "MCP server for managing Kwork freelance marketplace"
 license = "MIT"
 readme = "README.md"
@@ -19,18 +19,18 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "mcp>=1.20",
-    "kwork>=0.2.0",
-    "pydantic-settings>=2.7",
-    "loguru>=0.7",
+    "fastmcp>=3.1,<4",
+    "kwork>=0.2.0,<1",
+    "pydantic-settings>=2.7,<3",
+    "loguru>=0.7,<1",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8",
-    "pytest-asyncio>=0.25",
-    "pytest-cov>=6",
-    "ruff>=0.9",
+    "pytest>=8,<9",
+    "pytest-asyncio>=0.25,<1",
+    "pytest-cov>=6,<7",
+    "ruff>=0.9,<1",
 ]
 
 [project.scripts]

@@ -33,4 +33,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked --dev
-      - run: uv run pytest tests/ -x -v
+      - run: uv run pytest tests/ -x -v --cov=kwork_mcp --cov-report=term-missing

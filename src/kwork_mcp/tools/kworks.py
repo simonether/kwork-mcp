@@ -3,10 +3,19 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 
 from kwork_mcp.errors import api_guard
 from kwork_mcp.session import KworkSessionManager
+from kwork_mcp.utils import (
+    ANNO_DESTRUCTIVE,
+    ANNO_READ,
+    ANNO_WRITE,
+    check_success,
+    extract_error,
+    unwrap_response,
+    validate_positive_id,
+)
 
 _KWORK_STATUS_NAMES: dict[str, str] = {
     "active": "Активные",
@@ -26,7 +35,7 @@ def _format_kwork_brief(kwork: dict[str, Any]) -> str:
 
 
 def _format_kwork_detail(data: dict[str, Any]) -> str:
-    response = data.get("response") or data
+    response = unwrap_response(data)
     if not isinstance(response, dict):
         return json.dumps(data, ensure_ascii=False, indent=2)
 
@@ -68,23 +77,27 @@ def _format_kwork_detail(data: dict[str, Any]) -> str:
 
 def register(mcp: FastMCP) -> None:
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def list_my_kworks(ctx: Context) -> str:
-        """Получить список своих кворков (услуг), сгруппированных по статусу."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Получить список своих кворков (услуг), сгруппированных по статусу.
+
+        Когда использовать: для просмотра всех своих услуг и их текущих статусов.
+        Возвращает: кворки, сгруппированные по статусам (активные, на паузе и т.д.).
+        Связанные: get_kwork_details — подробности кворка, start_kwork/pause_kwork — управление.
+        """
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
-        async with api_guard("list_my_kworks"):
+        async with api_guard("list_my_kworks", session=session):
             data = await client.kworks_status_list()
 
-        response = data.get("response") or data
+        response = unwrap_response(data)
         if not response:
             return "Кворков нет."
 
         lines = ["Мои кворки:"]
         found_any = False
 
-        # Response may be a dict with status keys or a list of status groups
         if isinstance(response, dict):
             for status_key, display_name in _KWORK_STATUS_NAMES.items():
                 kworks = response.get(status_key) or response.get(f"{status_key}_kworks") or []
@@ -100,7 +113,6 @@ def register(mcp: FastMCP) -> None:
                             lines.append(_format_kwork_brief(kwork))
                         else:
                             lines.append(f"    {kwork}")
-            # Handle unexpected keys
             if not found_any:
                 for key, value in response.items():
                     if isinstance(value, list) and value:
@@ -113,8 +125,6 @@ def register(mcp: FastMCP) -> None:
                             else:
                                 lines.append(f"    {kwork}")
         elif isinstance(response, list):
-            # pykwork returns list of status groups:
-            # [{"id": 7, "name": "Активные", "kworks": [{...}, ...], "kworks_count": 1}, ...]
             for group in response:
                 if not isinstance(group, dict):
                     continue
@@ -128,7 +138,6 @@ def register(mcp: FastMCP) -> None:
                     if not isinstance(kwork, dict):
                         lines.append(f"    {kwork}")
                         continue
-                    # Skip nested status groups (they have "kworks" key)
                     if "kworks" in kwork or "kworks_count" in kwork:
                         continue
                     lines.append(_format_kwork_brief(kwork))
@@ -138,45 +147,60 @@ def register(mcp: FastMCP) -> None:
 
         return "\n".join(lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def get_kwork_details(kwork_id: int, ctx: Context) -> str:
-        """Получить подробную информацию о кворке по его ID."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Получить подробную информацию о кворке по его ID.
+
+        Когда использовать: для просмотра отзывов, FAQ и похожих кворков.
+        Возвращает: отзывы, часто задаваемые вопросы, похожие кворки.
+        Связанные: list_my_kworks — название и цена кворка.
+        """
+        validate_positive_id(kwork_id, "kwork_id")
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
-        # getKworkDetails returns minimal data; getKworkDetailsExtra returns full info
-        async with api_guard("get_kwork_details"):
+        async with api_guard("get_kwork_details", session=session):
             data = await client.get_kwork_details_extra(id=kwork_id, use_token=True)
 
         return _format_kwork_detail(data)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_WRITE)
     async def start_kwork(kwork_id: int, ctx: Context) -> str:
-        """Активировать приостановленный кворк. Кворк станет виден покупателям."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Активировать приостановленный кворк. Кворк станет виден покупателям.
+
+        Когда использовать: для возобновления показа кворка после паузы.
+        Возвращает: подтверждение активации или сообщение об ошибке.
+        Связанные: pause_kwork — приостановить кворк, list_my_kworks — список кворков.
+        """
+        validate_positive_id(kwork_id, "kwork_id")
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
-        async with api_guard("start_kwork"):
+        async with api_guard("start_kwork", session=session):
             data = await client.start_kwork(kwork_id=kwork_id)
 
-        if data.get("success"):
+        if check_success(data):
             return f"Кворк #{kwork_id} активирован."
 
-        error = data.get("error") or data.get("message") or data
-        return f"Не удалось активировать кворк #{kwork_id}: {error}"
+        return f"Не удалось активировать кворк #{kwork_id}: {extract_error(data)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_DESTRUCTIVE)
     async def pause_kwork(kwork_id: int, ctx: Context) -> str:
-        """Приостановить кворк. Кворк перестанет отображаться покупателям."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Приостановить кворк. Кворк перестанет отображаться покупателям.
+
+        Когда использовать: для временного скрытия кворка (отпуск, перегрузка).
+        Возвращает: подтверждение приостановки или сообщение об ошибке.
+        Связанные: start_kwork — возобновить кворк.
+        """
+        validate_positive_id(kwork_id, "kwork_id")
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
-        async with api_guard("pause_kwork"):
+        async with api_guard("pause_kwork", session=session):
             data = await client.pause_kwork(kwork_id=kwork_id)
 
-        if data.get("success"):
+        if check_success(data):
             return f"Кворк #{kwork_id} приостановлен."
 
-        error = data.get("error") or data.get("message") or data
-        return f"Не удалось приостановить кворк #{kwork_id}: {error}"
+        return f"Не удалось приостановить кворк #{kwork_id}: {extract_error(data)}"

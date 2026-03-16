@@ -6,59 +6,42 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from kwork_mcp.config import KworkConfig
-from kwork_mcp.session import KworkSessionManager
-
-
-def _make_config(**overrides) -> KworkConfig:
-    defaults = {
-        "login": "testuser",
-        "password": "testpass",
-        "token": None,
-        "token_file": Path("/tmp/test_kwork_token"),
-        "rps_limit": 100,
-        "burst_limit": 100,
-        "proxy_url": None,
-        "timeout": 5,
-        "phone_last": None,
-    }
-    defaults.update(overrides)
-    with patch.dict("os.environ", {}, clear=False):
-        return KworkConfig(**defaults)
+from kwork_mcp.session import KworkSessionManager, _get_client_token
 
 
 @pytest.mark.asyncio
-async def test_ensure_client_with_token(tmp_path: Path) -> None:
-    cfg = _make_config(token="mytoken", token_file=tmp_path / "token")
-    session = KworkSessionManager(cfg)
-    with patch("kwork_mcp.session.Kwork") as mock_kwork_cls:
-        mock_client = AsyncMock()
-        mock_kwork_cls.return_value = mock_client
-        client = await session.ensure_client()
-        assert client._token == "mytoken"
-    await session.close()
-
-
-@pytest.mark.asyncio
-async def test_ensure_client_from_file(tmp_path: Path) -> None:
-    token_file = tmp_path / "token"
-    token_file.write_text("filetoken123")
-    cfg = _make_config(token=None, token_file=token_file)
-    session = KworkSessionManager(cfg)
-    with patch("kwork_mcp.session.Kwork") as mock_kwork_cls:
-        mock_client = AsyncMock()
-        mock_kwork_cls.return_value = mock_client
-        client = await session.ensure_client()
-        assert client._token == "filetoken123"
-    await session.close()
-
-
-@pytest.mark.asyncio
-async def test_ensure_client_fresh_login(tmp_path: Path) -> None:
-    cfg = _make_config(
-        token=None,
-        token_file=tmp_path / "nonexistent",
+async def test_ensure_client_with_token(tmp_path: Path, mock_config: KworkConfig) -> None:
+    cfg = KworkConfig(
+        **{**mock_config.model_dump(), "token": "mytoken", "token_file": tmp_path / "token"},
     )
     session = KworkSessionManager(cfg)
+    with patch("kwork_mcp.session.Kwork") as mock_kwork_cls:
+        mock_client = AsyncMock()
+        mock_kwork_cls.return_value = mock_client
+        client = await session.ensure_client()
+        assert _get_client_token(client) == "mytoken"
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_from_file(tmp_path: Path, mock_config: KworkConfig) -> None:
+    token_file = tmp_path / "token"
+    token_file.write_text("filetoken123")
+    cfg = KworkConfig(
+        **{**mock_config.model_dump(), "token": None, "token_file": token_file},
+    )
+    session = KworkSessionManager(cfg)
+    with patch("kwork_mcp.session.Kwork") as mock_kwork_cls:
+        mock_client = AsyncMock()
+        mock_kwork_cls.return_value = mock_client
+        client = await session.ensure_client()
+        assert _get_client_token(client) == "filetoken123"
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_fresh_login(mock_config: KworkConfig) -> None:
+    session = KworkSessionManager(mock_config)
     with patch("kwork_mcp.session.Kwork") as mock_kwork_cls:
         mock_client = AsyncMock()
         mock_client.get_token = AsyncMock(return_value="newtoken")
@@ -70,20 +53,26 @@ async def test_ensure_client_fresh_login(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_ensure_client_no_credentials(tmp_path: Path) -> None:
-    cfg = _make_config(
-        login="",
-        password="",
-        token=None,
-        token_file=tmp_path / "nonexistent",
-    )
+    with patch.dict("os.environ", {}, clear=False):
+        cfg = KworkConfig(
+            login="",
+            password="",
+            token=None,
+            token_file=tmp_path / "nonexistent",
+            rps_limit=100,
+            burst_limit=100,
+            proxy_url=None,
+            timeout=5,
+            phone_last=None,
+        )
     session = KworkSessionManager(cfg)
     with patch("kwork_mcp.session.Kwork"), pytest.raises(RuntimeError, match="Авторизация не настроена"):
         await session.ensure_client()
 
 
 @pytest.mark.asyncio
-async def test_close_cleans_up() -> None:
-    cfg = _make_config(token="tok")
+async def test_close_cleans_up(mock_config: KworkConfig) -> None:
+    cfg = KworkConfig(**{**mock_config.model_dump(), "token": "tok"})
     session = KworkSessionManager(cfg)
     with patch("kwork_mcp.session.Kwork") as mock_kwork_cls:
         mock_client = AsyncMock()

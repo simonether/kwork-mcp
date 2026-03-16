@@ -2,28 +2,43 @@ from __future__ import annotations
 
 import json
 
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ToolError
 
 from kwork_mcp.errors import api_guard
 from kwork_mcp.session import KworkSessionManager
+from kwork_mcp.utils import (
+    ANNO_DESTRUCTIVE,
+    ANNO_READ,
+    ANNO_WRITE,
+    safe_get,
+    unwrap_response,
+    validate_not_empty,
+    validate_positive_id,
+    validate_positive_int,
+)
 
 _MIN_DESCRIPTION_LENGTH = 150
 
 
 def register(mcp: FastMCP) -> None:
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def list_my_offers(ctx: Context) -> str:
-        """Список ваших предложений (офферов) на бирже Kwork."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Список ваших предложений (офферов) на бирже Kwork.
+
+        Когда использовать: для просмотра отправленных предложений и их статусов.
+        Возвращает: список предложений с ID, названием проекта, статусом, ценой.
+        Связанные: get_offer — подробности предложения, submit_offer — отправить новое.
+        """
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
-        async with api_guard("список предложений"):
+        async with api_guard("список предложений", session=session):
             result = await client.offers(use_token=True)
 
-        resp = result.get("response", result)
+        resp = unwrap_response(result)
 
         if isinstance(resp, list):
             items = resp
@@ -40,32 +55,38 @@ def register(mcp: FastMCP) -> None:
             if not isinstance(offer, dict):
                 continue
             oid = offer.get("id", "?")
-            project_name = offer.get("name") or offer.get("want_name") or offer.get("title") or "—"
+            project_name = safe_get(offer, "name", "want_name", "title")
             status = offer.get("status") or "—"
-            price = offer.get("price") or offer.get("kwork_price") or "—"
+            price = safe_get(offer, "price", "kwork_price")
             lines.append(f"[ID {oid}] {project_name}\n  Статус: {status} | Цена: {price} руб.")
         return "\n\n".join(lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_READ)
     async def get_offer(offer_id: int, ctx: Context) -> str:
-        """Подробная информация о вашем предложении на бирже Kwork."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Подробная информация о вашем предложении на бирже Kwork.
+
+        Когда использовать: для просмотра деталей конкретного предложения.
+        Возвращает: название, статус, цена, срок, проект, описание.
+        Связанные: list_my_offers — список всех предложений, delete_offer — удалить.
+        """
+        validate_positive_id(offer_id, "offer_id")
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
-        async with api_guard("получение предложения"):
+        async with api_guard("получение предложения", session=session):
             result = await client.offer(id=offer_id, use_token=True)
 
-        resp = result.get("response", result)
+        resp = unwrap_response(result)
 
         if isinstance(resp, dict):
             oid = resp.get("id", offer_id)
-            title = resp.get("name") or resp.get("kwork_name") or resp.get("title") or "—"
+            title = safe_get(resp, "name", "kwork_name", "title")
             status = resp.get("status") or "—"
-            price = resp.get("price") or resp.get("kwork_price") or "—"
+            price = safe_get(resp, "price", "kwork_price")
             desc = resp.get("description") or "—"
-            duration = resp.get("kwork_duration") or resp.get("duration") or "—"
-            project_id = resp.get("want_id") or resp.get("project_id") or "—"
+            duration = safe_get(resp, "kwork_duration", "duration")
+            project_id = safe_get(resp, "want_id", "project_id")
 
             return (
                 f"Предложение #{oid}\n"
@@ -79,7 +100,7 @@ def register(mcp: FastMCP) -> None:
 
         return f"Предложение #{offer_id}:\n{json.dumps(resp, ensure_ascii=False, indent=2)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_WRITE)
     async def submit_offer(
         project_id: int,
         title: str,
@@ -90,6 +111,10 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Отправить предложение на проект биржи Kwork.
 
+        Когда использовать: для отклика на подходящий проект на бирже.
+        Возвращает: ID предложения и подтверждение отправки.
+        Связанные: get_project — изучить проект перед откликом, get_connects — проверить баланс коннектов.
+
         ВНИМАНИЕ: отправка предложения списывает один коннект.
 
         Параметры:
@@ -99,16 +124,21 @@ def register(mcp: FastMCP) -> None:
         - price: цена в рублях
         - duration_days: срок выполнения в днях
         """
+        validate_positive_id(project_id, "project_id")
+        validate_not_empty(title, "title")
+        validate_not_empty(description, "description")
+        validate_positive_int(price, "price")
+        validate_positive_int(duration_days, "duration_days")
         if len(description) < _MIN_DESCRIPTION_LENGTH:
             raise ToolError(
                 f"Описание слишком короткое: {len(description)} символов. Минимум — {_MIN_DESCRIPTION_LENGTH} символов."
             )
 
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_web_client()
         await session.rate_limit()
 
-        async with api_guard("отправка предложения"):
+        async with api_guard("отправка предложения", session=session):
             result = await client.web.submit_exchange_offer(
                 project_id=project_id,
                 offer_type="custom",
@@ -136,14 +166,22 @@ def register(mcp: FastMCP) -> None:
             f"Списан 1 коннект."
         )
 
-    @mcp.tool()
+    @mcp.tool(annotations=ANNO_DESTRUCTIVE)
     async def delete_offer(offer_id: int, ctx: Context) -> str:
-        """Удалить ваше предложение с биржи Kwork."""
-        session: KworkSessionManager = ctx.request_context.lifespan_context
+        """Удалить ваше предложение с биржи Kwork.
+
+        Когда использовать: для отмены отправленного предложения.
+        Возвращает: подтверждение удаления.
+        Связанные: list_my_offers — найти ID предложения для удаления.
+
+        ВНИМАНИЕ: необратимое действие.
+        """
+        validate_positive_id(offer_id, "offer_id")
+        session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
-        async with api_guard("удаление предложения"):
+        async with api_guard("удаление предложения", session=session):
             await client.delete_offer(id=offer_id, use_token=True)
 
         return f"Предложение #{offer_id} удалено."

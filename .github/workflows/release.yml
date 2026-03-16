@@ -23,7 +23,18 @@ jobs:
         with:
           enable-cache: true
       - run: uv build
+      - name: Smoke test
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          uv run --isolated --no-project --with "$WHEEL" -- python -c "from kwork_mcp.server import create_server; s = create_server(); print('OK')"
       - run: uv publish
-      - run: gh release create ${{ github.ref_name }} dist/* --generate-notes
+      - name: Create GitHub release
+        run: |
+          TAG="${{ github.ref_name }}"
+          PRERELEASE_FLAG=""
+          if echo "$TAG" | grep -qE '(a|b|rc|dev)[0-9]'; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$TAG" dist/* --generate-notes $PRERELEASE_FLAG
         env:
           GH_TOKEN: ${{ github.token }}

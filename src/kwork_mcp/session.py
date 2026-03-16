@@ -11,6 +11,14 @@ from kwork_mcp.config import KworkConfig
 from kwork_mcp.rate_limiter import InProcessRateLimiter
 
 
+def _set_client_token(client: Kwork, token: str) -> None:
+    client._token = token
+
+
+def _get_client_token(client: Kwork) -> str | None:
+    return client._token
+
+
 class KworkSessionManager:
     """Manages a single pykwork client with lazy auth and auto-relogin."""
 
@@ -55,6 +63,19 @@ class KworkSessionManager:
             self._client = None
             self._web_logged_in = False
 
+    async def get_exchange_info(self) -> dict:
+        """Fetch exchange statistics via raw HTTP (bypasses pykwork's JSON handler)."""
+        from kwork.api import AUTH_HEADER
+
+        client = await self.ensure_client()
+        token = _get_client_token(client)
+        resp = await client.session.post(
+            "https://api.kwork.ru/exchangeInfo",
+            headers={"Authorization": AUTH_HEADER},
+            data={"token": token},
+        )
+        return await resp.json(content_type=None)
+
     def _make_client(self) -> Kwork:
         cfg = self._config
         return Kwork(
@@ -71,7 +92,7 @@ class KworkSessionManager:
         if cfg.token and cfg.token.get_secret_value():
             logger.info("Using KWORK_TOKEN from environment")
             client = self._make_client()
-            client._token = cfg.token.get_secret_value()
+            _set_client_token(client, cfg.token.get_secret_value())
             return client
 
         # Priority 2: token from file
@@ -81,7 +102,7 @@ class KworkSessionManager:
                 if saved_token:
                     logger.info("Restoring token from {}", cfg.token_file)
                     client = self._make_client()
-                    client._token = saved_token
+                    _set_client_token(client, saved_token)
                     return client
             except OSError:
                 logger.warning("Failed to read token file {}", cfg.token_file)
