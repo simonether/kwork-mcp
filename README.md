@@ -12,9 +12,17 @@
 
 MCP server that exposes 25 tools for the [Kwork](https://kwork.ru) freelance marketplace — browse projects, submit offers, manage orders, send messages, and more.
 
-Built with [FastMCP](https://github.com/jlowin/fastmcp) (via [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)) and [pykwork](https://github.com/kesha1225/pykwork).
+Built with [FastMCP 3.x](https://github.com/PrefectHQ/fastmcp) and [pykwork](https://github.com/kesha1225/pykwork).
 
-## 🚀 Setup
+## Highlights
+
+- **Tool annotations** — read-only, write, and destructive hints for safer agent interactions
+- **Input validation** — all parameters validated before API calls
+- **Auto-relogin** — automatic session refresh on 401 errors
+- **Error sanitization** — internal details stay in logs, not in agent responses
+- **Rate limiting** — built-in sliding window rate limiter
+
+## Setup
 
 ### Requirements
 
@@ -56,7 +64,7 @@ uv sync
 
 Auth priority: `KWORK_TOKEN` env → saved token file → fresh login.
 
-## 💡 Usage
+## Usage
 
 ### Claude Desktop
 
@@ -110,7 +118,7 @@ Add to `.vscode/mcp.json`:
 uvx kwork-mcp
 ```
 
-## 🛠 Tools
+## Tools
 
 <details>
 <summary><strong>Profile</strong> (3 tools)</summary>
@@ -201,11 +209,11 @@ uvx kwork-mcp
 
 </details>
 
-## 🧑‍💻 Development
+## Development
 
 ```bash
 uv sync --dev
-uv run python -m pytest tests/ -x -v
+uv run python -m pytest tests/ -x -v --cov=kwork_mcp --cov-report=term-missing
 uv run ruff check .
 uv run ruff format --check .
 ```
