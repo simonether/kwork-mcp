@@ -23,7 +23,7 @@ src/kwork_mcp/
   rate_limiter.py    — InProcessRateLimiter (sliding window, deque + asyncio.Lock)
   utils.py           — shared utilities (formatting, validation, response helpers, tool annotations)
   tools/             — 8 modules, 28 tools (profile, projects, offers, orders, dialogs, kworks, categories, notifications)
-tests/               — config, rate_limiter, session, errors, utils, tools tests (92 tests)
+tests/               — config, rate_limiter, session, errors, utils, tools tests (97 tests)
 ```
 
 ## Architecture

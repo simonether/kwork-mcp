@@ -9,6 +9,8 @@ from kwork.schema import DialogMessage, InboxMessage, User
 
 from kwork_mcp.session import KworkSessionManager
 from kwork_mcp.tools import dialogs as dialogs_mod
+from kwork_mcp.tools import offers as offers_mod
+from kwork_mcp.tools import orders as orders_mod
 from kwork_mcp.tools import profile as profile_mod
 
 # ---------------------------------------------------------------------------
@@ -349,3 +351,104 @@ class TestDeleteMessage:
 
         with pytest.raises(ToolError, match="положительным"):
             await fn(message_id=-1, ctx=ctx)
+
+
+# ---------------------------------------------------------------------------
+# Offers: list_my_offers pagination
+# ---------------------------------------------------------------------------
+
+
+class TestListMyOffers:
+    @pytest.mark.asyncio
+    async def test_passes_page(self, mock_session: KworkSessionManager, mock_client: AsyncMock) -> None:
+        ctx = _make_ctx(mock_session)
+        mock_client.offers.return_value = {
+            "response": {
+                "offers": [
+                    {"id": 1, "name": "Кворк 1", "status": "active", "price": 500},
+                    {"id": 2, "name": "Кворк 2", "status": "active", "price": 1000},
+                ],
+            },
+            "paging": {"total": 50, "pages": 3},
+        }
+
+        mcp = FastMCP("test")
+        offers_mod.register(mcp)
+        tools = {t.name: t for t in await mcp.list_tools()}
+        fn = tools["list_my_offers"].fn
+
+        result = await fn(ctx=ctx, page=2)
+        mock_client.offers.assert_awaited_once_with(use_token=True, page=2)
+        assert "стр. 2/3" in result
+        assert "всего: 50" in result
+        assert "[ID 1]" in result
+
+    @pytest.mark.asyncio
+    async def test_invalid_page(self, mock_session: KworkSessionManager) -> None:
+        ctx = _make_ctx(mock_session)
+        mcp = FastMCP("test")
+        offers_mod.register(mcp)
+        tools = {t.name: t for t in await mcp.list_tools()}
+        fn = tools["list_my_offers"].fn
+
+        with pytest.raises(ToolError):
+            await fn(ctx=ctx, page=0)
+
+    @pytest.mark.asyncio
+    async def test_no_paging(self, mock_session: KworkSessionManager, mock_client: AsyncMock) -> None:
+        ctx = _make_ctx(mock_session)
+        mock_client.offers.return_value = {
+            "response": [{"id": 5, "name": "Offer", "status": "active", "price": 300}],
+        }
+
+        mcp = FastMCP("test")
+        offers_mod.register(mcp)
+        tools = {t.name: t for t in await mcp.list_tools()}
+        fn = tools["list_my_offers"].fn
+
+        result = await fn(ctx=ctx)
+        mock_client.offers.assert_awaited_once_with(use_token=True, page=1)
+        assert "стр. 1/?" in result
+        assert "всего: 1" in result
+
+
+# ---------------------------------------------------------------------------
+# Orders: list_worker_orders pagination
+# ---------------------------------------------------------------------------
+
+
+class TestListWorkerOrders:
+    @pytest.mark.asyncio
+    async def test_passes_page(self, mock_session: KworkSessionManager, mock_client: AsyncMock) -> None:
+        ctx = _make_ctx(mock_session)
+        mock_client.get_worker_orders.return_value = {
+            "response": {
+                "orders": [
+                    {"id": 10, "display_title": "Заказ 1", "status": 1, "price": 2000, "payer": {"username": "buyer"}},
+                ],
+                "paging": {"total": 25, "pages": 2},
+                "filter_counts": {},
+            },
+        }
+
+        mcp = FastMCP("test")
+        orders_mod.register(mcp)
+        tools = {t.name: t for t in await mcp.list_tools()}
+        fn = tools["list_worker_orders"].fn
+
+        result = await fn(ctx=ctx, page=2)
+        mock_client.get_worker_orders.assert_awaited_once_with(page=2)
+        assert "стр. 2/2" in result
+        assert "всего: 25" in result
+        assert "#10" in result
+
+    @pytest.mark.asyncio
+    async def test_invalid_page(self, mock_session: KworkSessionManager) -> None:
+        ctx = _make_ctx(mock_session)
+        mcp = FastMCP("test")
+        orders_mod.register(mcp)
+        tools = {t.name: t for t in await mcp.list_tools()}
+        fn = tools["list_worker_orders"].fn
+
+        with pytest.raises(ToolError):
+            await fn(ctx=ctx, page=-1)

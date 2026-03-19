@@ -14,6 +14,7 @@ from kwork_mcp.utils import (
     safe_get,
     unwrap_response,
     validate_not_empty,
+    validate_page,
     validate_positive_id,
     validate_positive_int,
 )
@@ -24,21 +25,28 @@ _MIN_DESCRIPTION_LENGTH = 150
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ANNO_READ)
-    async def list_my_offers(ctx: Context) -> str:
+    async def list_my_offers(ctx: Context, page: int = 1) -> str:
         """Список ваших предложений (офферов) на бирже Kwork.
 
         Когда использовать: для просмотра отправленных предложений и их статусов.
         Возвращает: список предложений с ID, названием проекта, статусом, ценой.
         Связанные: get_offer — подробности предложения, submit_offer — отправить новое.
+
+        Параметры:
+        - page: номер страницы (по умолчанию 1)
         """
+        validate_page(page)
         session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
 
         async with api_guard("список предложений", session=session):
-            result = await client.offers(use_token=True)
+            result = await client.offers(use_token=True, page=page)
 
         resp = unwrap_response(result)
+        paging = {}
+        if isinstance(result, dict):
+            paging = result.get("paging") or {}
 
         if isinstance(resp, list):
             items = resp
@@ -50,7 +58,9 @@ def register(mcp: FastMCP) -> None:
         if not items:
             return "У вас нет активных предложений на бирже."
 
-        lines = [f"Ваши предложения: {len(items)}\n"]
+        total = paging.get("total", len(items))
+        total_pages = paging.get("pages", "?")
+        lines = [f"Ваши предложения (стр. {page}/{total_pages}, всего: {total}):\n"]
         for offer in items:
             if not isinstance(offer, dict):
                 continue

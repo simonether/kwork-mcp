@@ -14,6 +14,7 @@ from kwork_mcp.utils import (
     extract_error,
     format_timestamp,
     unwrap_response,
+    validate_page,
     validate_positive_id,
 )
 
@@ -107,18 +108,22 @@ def _format_order_detail(data: dict[str, Any]) -> str:
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ANNO_READ)
-    async def list_worker_orders(ctx: Context) -> str:
+    async def list_worker_orders(ctx: Context, page: int = 1) -> str:
         """Получить список заказов текущего продавца (все статусы).
 
         Когда использовать: для просмотра текущих и прошлых заказов продавца.
         Возвращает: список заказов с ID, названием, статусом, ценой, покупателем.
         Связанные: get_order_details — подробности конкретного заказа.
+
+        Параметры:
+        - page: номер страницы (по умолчанию 1)
         """
+        validate_page(page)
         session: KworkSessionManager = ctx.lifespan_context["session"]
         client = await session.ensure_client()
         await session.rate_limit()
         async with api_guard("list_worker_orders", session=session):
-            data = await client.get_worker_orders()
+            data = await client.get_worker_orders(page=page)
 
         response = unwrap_response(data)
         if isinstance(response, dict):
@@ -136,7 +141,8 @@ def register(mcp: FastMCP) -> None:
             return "Заказов нет."
 
         total = paging.get("total") or len(orders)
-        lines = [f"Заказы продавца (всего: {total}):"]
+        total_pages = paging.get("pages", "?")
+        lines = [f"Заказы продавца (стр. {page}/{total_pages}, всего: {total}):"]
 
         if filter_counts:
             counts = ", ".join(f"{k}: {v}" for k, v in filter_counts.items() if v)
