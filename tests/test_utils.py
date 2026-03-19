@@ -12,6 +12,7 @@ from kwork_mcp.utils import (
     truncate,
     unwrap_response,
     validate_not_empty,
+    validate_one_of,
     validate_page,
     validate_positive_id,
     validate_positive_int,
@@ -231,3 +232,22 @@ class TestValidateNotEmpty:
     def test_whitespace(self) -> None:
         with pytest.raises(ToolError, match="пустым"):
             validate_not_empty("   ", "field")
+
+
+# --- validate_one_of ---
+
+
+class TestValidateOneOf:
+    def test_one_provided(self) -> None:
+        validate_one_of(user_id=123, username=None)  # should not raise
+
+    def test_both_provided(self) -> None:
+        validate_one_of(user_id=123, username="test")  # should not raise
+
+    def test_none_provided(self) -> None:
+        with pytest.raises(ToolError, match="Укажите хотя бы один"):
+            validate_one_of(user_id=None, username=None)
+
+    def test_all_none(self) -> None:
+        with pytest.raises(ToolError, match="Укажите хотя бы один"):
+            validate_one_of(a=None, b=None, c=None)

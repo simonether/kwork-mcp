@@ -94,3 +94,13 @@ def validate_not_empty(value: str, name: str) -> None:
         from fastmcp.exceptions import ToolError
 
         raise ToolError(f"{name} не может быть пустым.")
+
+
+def validate_one_of(**kwargs: Any) -> None:
+    """Raise ToolError if none of the keyword arguments has a non-None value."""
+    provided = [k for k, v in kwargs.items() if v is not None]
+    if not provided:
+        from fastmcp.exceptions import ToolError
+
+        names = ", ".join(kwargs.keys())
+        raise ToolError(f"Укажите хотя бы один из параметров: {names}")

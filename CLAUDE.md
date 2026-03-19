@@ -22,8 +22,8 @@ src/kwork_mcp/
   errors.py          — api_guard() context manager (KworkException -> ToolError, auto-relogin on 401)
   rate_limiter.py    — InProcessRateLimiter (sliding window, deque + asyncio.Lock)
   utils.py           — shared utilities (formatting, validation, response helpers, tool annotations)
-  tools/             — 8 modules, 25 tools (profile, projects, offers, orders, dialogs, kworks, categories, notifications)
-tests/               — config, rate_limiter, session, errors, utils tests (71 tests)
+  tools/             — 8 modules, 28 tools (profile, projects, offers, orders, dialogs, kworks, categories, notifications)
+tests/               — config, rate_limiter, session, errors, utils, tools tests (92 tests)
 ```
 
 ## Architecture
