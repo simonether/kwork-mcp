@@ -1,6 +1,6 @@
 [project]
 name = "kwork-mcp"
-version = "0.2.1"
+version = "0.2.2"
 description = "MCP server for managing Kwork freelance marketplace"
 license = "MIT"
 readme = "README.md"
@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "fastmcp>=3.1,<4",
-    "kwork>=0.2.0,<1",
+    "kwork[proxy]>=0.2.0,<1",
     "pydantic-settings>=2.7,<3",
     "loguru>=0.7,<1",
 ]

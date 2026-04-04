@@ -83,6 +83,7 @@ class KworkSessionManager:
             password=cfg.password.get_secret_value() or "",
             proxy=cfg.proxy_url,
             phone_last=cfg.phone_last,
+            timeout=cfg.timeout,
         )
 
     async def _create_and_auth(self) -> Kwork:

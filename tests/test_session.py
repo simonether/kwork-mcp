@@ -71,6 +71,34 @@ async def test_ensure_client_no_credentials(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_make_client_passes_proxy_and_timeout(tmp_path: Path) -> None:
+    with patch.dict("os.environ", {}, clear=False):
+        cfg = KworkConfig(
+            login="testuser",
+            password="testpass",
+            token="tok",
+            token_file=tmp_path / "token",
+            rps_limit=100,
+            burst_limit=100,
+            proxy_url="socks5://proxy.example.com:1080",
+            timeout=15,
+            phone_last=None,
+        )
+    session = KworkSessionManager(cfg)
+    with patch("kwork_mcp.session.Kwork") as mock_kwork_cls:
+        mock_kwork_cls.return_value = AsyncMock()
+        await session.ensure_client()
+        mock_kwork_cls.assert_called_once_with(
+            login="testuser",
+            password="testpass",
+            proxy="socks5://proxy.example.com:1080",
+            phone_last=None,
+            timeout=15,
+        )
+    await session.close()
+
+
+@pytest.mark.asyncio
 async def test_close_cleans_up(mock_config: KworkConfig) -> None:
     cfg = KworkConfig(**{**mock_config.model_dump(), "token": "tok"})
     session = KworkSessionManager(cfg)

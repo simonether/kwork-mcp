@@ -55,7 +55,8 @@ uv sync
 | `KWORK_PASSWORD` | yes* | — | Kwork password |
 | `KWORK_TOKEN` | yes* | — | Auth token (skips login) |
 | `KWORK_PHONE_LAST` | no | — | Last 4 digits of phone (2FA) |
-| `KWORK_PROXY_URL` | no | — | SOCKS5 proxy |
+| `KWORK_PROXY_URL` | no | — | Proxy (HTTP / SOCKS4 / SOCKS5) |
+| `KWORK_TIMEOUT` | no | `30` | Request timeout in seconds |
 | `KWORK_RPS_LIMIT` | no | `2` | Requests per second |
 | `KWORK_BURST_LIMIT` | no | `5` | Burst limit |
 | `KWORK_TOKEN_FILE` | no | `~/.kwork_token` | Token persistence path |
@@ -63,6 +64,14 @@ uv sync
 \*Either `KWORK_TOKEN` or both `KWORK_LOGIN` + `KWORK_PASSWORD`.
 
 Auth priority: `KWORK_TOKEN` env → saved token file → fresh login.
+
+Proxy URL formats:
+
+```
+KWORK_PROXY_URL=http://proxy.example.com:8080
+KWORK_PROXY_URL=socks5://proxy.example.com:1080
+KWORK_PROXY_URL=socks5://user:password@proxy.example.com:1080
+```
 
 ## Usage
 
