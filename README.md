@@ -10,7 +10,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![MCP](https://img.shields.io/badge/MCP-compatible-8A2BE2)](https://modelcontextprotocol.io)
 
-MCP server that exposes 25 tools for the [Kwork](https://kwork.ru) freelance marketplace — browse projects, submit offers, manage orders, send messages, and more.
+MCP server that exposes 28 tools for the [Kwork](https://kwork.ru) freelance marketplace — browse projects, submit offers, manage orders, send messages, and more.
 
 Built with [FastMCP 3.x](https://github.com/PrefectHQ/fastmcp) and [pykwork](https://github.com/kesha1225/pykwork).
 
@@ -130,13 +130,14 @@ uvx kwork-mcp
 ## Tools
 
 <details>
-<summary><strong>Profile</strong> (3 tools)</summary>
+<summary><strong>Profile</strong> (4 tools)</summary>
 
 | Tool | Description |
 |---|---|
 | `get_me` | Current user profile, rating, balance |
 | `get_connects` | Connect count for exchange offers |
 | `get_user_info` | Public user info by ID |
+| `search_users` | Search users by name or username |
 
 </details>
 
@@ -176,13 +177,15 @@ uvx kwork-mcp
 </details>
 
 <details>
-<summary><strong>Dialogs</strong> (4 tools)</summary>
+<summary><strong>Dialogs</strong> (6 tools)</summary>
 
 | Tool | Description |
 |---|---|
 | `list_dialogs` | Conversations with latest messages |
 | `get_dialog` | Messages by username |
 | `send_message` | Send direct message |
+| `edit_message` | Edit a sent message by ID |
+| `delete_message` | Delete a sent message by ID |
 | `mark_dialog_read` | Mark as read |
 
 </details>
@@ -230,3 +233,5 @@ uv run ruff format --check .
 ## License
 
 [MIT](LICENSE)
+
+<!-- mcp-name: io.github.simonether/kwork-mcp -->

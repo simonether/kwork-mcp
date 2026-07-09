@@ -13,3 +13,4 @@ CLAUDE.md
 .coverage
 docs/api_responses.md
 docs/improvements.md
+.DS_Store

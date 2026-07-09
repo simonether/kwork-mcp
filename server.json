@@ -1,0 +1,83 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.simonether/kwork-mcp",
+  "title": "Kwork",
+  "description": "Kwork freelance marketplace: browse projects, submit offers, manage orders, message clients",
+  "version": "0.2.3",
+  "websiteUrl": "https://github.com/simonether/kwork-mcp",
+  "repository": {
+    "url": "https://github.com/simonether/kwork-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "kwork-mcp",
+      "version": "0.2.3",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "KWORK_LOGIN",
+          "description": "Kwork login (required unless KWORK_TOKEN is set)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "KWORK_PASSWORD",
+          "description": "Kwork password (required unless KWORK_TOKEN is set)",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "KWORK_TOKEN",
+          "description": "Auth token, skips login (alternative to KWORK_LOGIN + KWORK_PASSWORD)",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "KWORK_PHONE_LAST",
+          "description": "Last 4 digits of phone for 2FA",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "KWORK_PROXY_URL",
+          "description": "Proxy URL (HTTP / SOCKS4 / SOCKS5)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "KWORK_TIMEOUT",
+          "description": "Request timeout in seconds",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "30"
+        },
+        {
+          "name": "KWORK_RPS_LIMIT",
+          "description": "Requests per second limit",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "2"
+        },
+        {
+          "name": "KWORK_BURST_LIMIT",
+          "description": "Burst limit for the rate limiter",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "5"
+        },
+        {
+          "name": "KWORK_TOKEN_FILE",
+          "description": "Token persistence path",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "~/.kwork_token"
+        }
+      ]
+    }
+  ]
+}
