@@ -1,3 +1,4 @@
 from kwork_mcp import main
 
-main()
+if __name__ == "__main__":
+    main()

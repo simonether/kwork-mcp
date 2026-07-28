@@ -11,6 +11,7 @@ dist/
 CLAUDE.md
 .superpowers/
 .coverage
+coverage.xml
+htmlcov/
 docs/api_responses.md
-docs/improvements.md
 .DS_Store

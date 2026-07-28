@@ -48,7 +48,7 @@
   <text x="55" y="100" font-family="'IBM Plex Mono', 'Source Code Pro', monospace" font-size="44" font-weight="600" fill="url(#ac)">kwork-mcp</text>
 
   <!-- Tagline -->
-  <text x="57" y="135" font-family="'Outfit', 'Sora', sans-serif" font-size="13.5" fill="rgba(255,255,255,0.38)" letter-spacing="1">MCP server · 25 tools · Kwork freelance marketplace</text>
+  <text x="57" y="135" font-family="'Outfit', 'Sora', sans-serif" font-size="13.5" fill="rgba(255,255,255,0.38)" letter-spacing="1">MCP server · 22 tools · Kwork freelance marketplace</text>
 
   <!-- Accent dot + line -->
   <circle cx="59" cy="155" r="2.5" fill="rgba(224,64,251,0.4)"/>
