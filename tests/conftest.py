@@ -1,42 +1,49 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from typing import Any
 
 import pytest
+from kwork.schema.actor import Actor
 
 from kwork_mcp.config import KworkConfig
-from kwork_mcp.session import KworkSessionManager, _set_client_token
+from kwork_mcp.coordination import CoordinationStore
 
 
 @pytest.fixture
-def mock_config(tmp_path: Path) -> KworkConfig:
-    """KworkConfig with test values and fast rate limiter."""
-    with patch.dict("os.environ", {}, clear=False):
-        return KworkConfig(
-            login="testuser",
-            password="testpass",
-            token=None,
-            token_file=tmp_path / "test_kwork_token",
-            rps_limit=100,
-            burst_limit=100,
-            proxy_url=None,
-            timeout=5,
-            phone_last=None,
-        )
+def config_factory(tmp_path: Path) -> Callable[..., KworkConfig]:
+    counter = 0
+
+    def factory(**overrides: Any) -> KworkConfig:
+        nonlocal counter
+        counter += 1
+        state_dir = tmp_path / f"state-{counter}"
+        os.mkdir(state_dir, mode=0o700)
+        values: dict[str, Any] = {
+            "token": "fixture-token",
+            "state_dir": state_dir,
+            "persist_token": False,
+            "rps_limit": 100.0,
+            "burst_limit": 100,
+            "route_rps_limit": 100.0,
+            "route_burst_limit": 100,
+            "rate_wait_timeout": 2.0,
+            "retry_backoff_base": 0.0,
+            "retry_backoff_max": 0.0,
+            "reconciliation_min_age_seconds": 1.0,
+        }
+        values.update(overrides)
+        return KworkConfig(**values)
+
+    return factory
 
 
 @pytest.fixture
-def mock_client() -> AsyncMock:
-    """AsyncMock for a Kwork client."""
-    client = AsyncMock()
-    _set_client_token(client, "")
-    return client
+def coordinator(config_factory: Callable[..., KworkConfig]) -> CoordinationStore:
+    return CoordinationStore(config_factory())
 
 
-@pytest.fixture
-def mock_session(mock_config: KworkConfig, mock_client: AsyncMock) -> KworkSessionManager:
-    """KworkSessionManager with a pre-attached mock client."""
-    session = KworkSessionManager(mock_config)
-    session._client = mock_client
-    return session
+def actor(user_id: int = 42, username: str = "fixture-user") -> Actor:
+    return Actor(id=user_id, username=username)

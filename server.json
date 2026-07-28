@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.simonether/kwork-mcp",
   "title": "Kwork",
-  "description": "Kwork freelance marketplace: browse projects, submit offers, manage orders, message clients",
-  "version": "0.2.3",
+  "description": "Account-bound, typed and durable stdio MCP gateway for the Kwork freelance marketplace",
+  "version": "1.0.0rc1",
   "websiteUrl": "https://github.com/simonether/kwork-mcp",
   "repository": {
     "url": "https://github.com/simonether/kwork-mcp",
@@ -13,69 +13,176 @@
     {
       "registryType": "pypi",
       "identifier": "kwork-mcp",
-      "version": "0.2.3",
+      "version": "1.0.0rc1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
-          "name": "KWORK_LOGIN",
-          "description": "Kwork login (required unless KWORK_TOKEN is set)",
+          "name": "KWORK_EXPECTED_USER_ID",
+          "description": "Verified positive Kwork user ID; required for credentialless normal server startup",
+          "isRequired": true,
+          "isSecret": false
+        },
+        {
+          "name": "KWORK_EXPECTED_USERNAME",
+          "description": "Optional second account identity check",
           "isRequired": false,
           "isSecret": false
         },
         {
-          "name": "KWORK_PASSWORD",
-          "description": "Kwork password (required unless KWORK_TOKEN is set)",
+          "name": "KWORK_ENABLE_WRITES",
+          "description": "Explicitly enable prepare/commit writes; also requires KWORK_EXPECTED_USER_ID",
           "isRequired": false,
-          "isSecret": true
-        },
-        {
-          "name": "KWORK_TOKEN",
-          "description": "Auth token, skips login (alternative to KWORK_LOGIN + KWORK_PASSWORD)",
-          "isRequired": false,
-          "isSecret": true
-        },
-        {
-          "name": "KWORK_PHONE_LAST",
-          "description": "Last 4 digits of phone for 2FA",
-          "isRequired": false,
-          "isSecret": false
-        },
-        {
-          "name": "KWORK_PROXY_URL",
-          "description": "Proxy URL (HTTP / SOCKS4 / SOCKS5)",
-          "isRequired": false,
-          "isSecret": false
+          "isSecret": false,
+          "default": "false"
         },
         {
           "name": "KWORK_TIMEOUT",
-          "description": "Request timeout in seconds",
+          "description": "Kwork request timeout in seconds (1-120)",
           "isRequired": false,
           "isSecret": false,
           "default": "30"
         },
         {
+          "name": "KWORK_STATE_DIR",
+          "description": "Absolute private directory shared by gateway processes for the same account",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "KWORK_PERSIST_TOKEN",
+          "description": "Use the verified account-scoped credential store; required for normal server startup",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "true"
+        },
+        {
           "name": "KWORK_RPS_LIMIT",
-          "description": "Requests per second limit",
+          "description": "Shared account-level token refill rate",
           "isRequired": false,
           "isSecret": false,
           "default": "2"
         },
         {
           "name": "KWORK_BURST_LIMIT",
-          "description": "Burst limit for the rate limiter",
+          "description": "Shared account-level token bucket capacity",
           "isRequired": false,
           "isSecret": false,
-          "default": "5"
+          "default": "4"
         },
         {
-          "name": "KWORK_TOKEN_FILE",
-          "description": "Token persistence path",
+          "name": "KWORK_ROUTE_RPS_LIMIT",
+          "description": "Shared per-route token refill rate",
           "isRequired": false,
           "isSecret": false,
-          "default": "~/.kwork_token"
+          "default": "1"
+        },
+        {
+          "name": "KWORK_ROUTE_BURST_LIMIT",
+          "description": "Shared per-route token bucket capacity",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "2"
+        },
+        {
+          "name": "KWORK_RATE_WAIT_TIMEOUT",
+          "description": "Maximum seconds to wait for shared rate-limit admission",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "20"
+        },
+        {
+          "name": "KWORK_AUTH_LOCK_TIMEOUT",
+          "description": "Maximum seconds to wait for account credential-store authentication coordination",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "90"
+        },
+        {
+          "name": "KWORK_READ_ATTEMPTS",
+          "description": "Maximum attempts for retry-safe read requests only",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "3"
+        },
+        {
+          "name": "KWORK_RETRY_BACKOFF_BASE",
+          "description": "Initial retry backoff for retry-safe reads, in seconds",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "0.5"
+        },
+        {
+          "name": "KWORK_RETRY_BACKOFF_MAX",
+          "description": "Maximum retry backoff for retry-safe reads, in seconds",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "8"
+        },
+        {
+          "name": "KWORK_CIRCUIT_FAILURE_THRESHOLD",
+          "description": "Shared route failures before opening the circuit",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "3"
+        },
+        {
+          "name": "KWORK_CIRCUIT_OPEN_SECONDS",
+          "description": "Base shared circuit-open interval in seconds",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "30"
+        },
+        {
+          "name": "KWORK_PREPARATION_TTL_SECONDS",
+          "description": "Safe write preparation lifetime",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "600"
+        },
+        {
+          "name": "KWORK_WRITE_LEASE_SECONDS",
+          "description": "Durable one-writer lease duration in seconds",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "120"
+        },
+        {
+          "name": "KWORK_RECONCILIATION_MIN_AGE_SECONDS",
+          "description": "Minimum age before ambiguous-write read-back (1-300 seconds)",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "15"
+        },
+        {
+          "name": "KWORK_RECONCILIATION_ABSENCE_CONFIRMATIONS",
+          "description": "Complete absent observations required before a terminal result",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "2"
+        },
+        {
+          "name": "KWORK_RECONCILIATION_ABSENCE_INTERVAL_SECONDS",
+          "description": "Minimum interval between absent observations (1-300 seconds)",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "15"
+        },
+        {
+          "name": "KWORK_STATE_RETENTION_DAYS",
+          "description": "Retention for terminal durable write records",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "30"
+        },
+        {
+          "name": "KWORK_LOG_LEVEL",
+          "description": "Gateway stderr log level: DEBUG, INFO, WARNING or ERROR",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "INFO"
         }
       ]
     }

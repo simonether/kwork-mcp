@@ -2,25 +2,10 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
-from kwork_mcp.tools import (
-    categories,
-    dialogs,
-    kworks,
-    notifications,
-    offers,
-    orders,
-    profile,
-    projects,
-)
+from kwork_mcp.tools import read_tools, write_tools
 
 
 def register_all(mcp: FastMCP) -> None:
-    """Register every tool module with the MCP server."""
-    profile.register(mcp)
-    categories.register(mcp)
-    notifications.register(mcp)
-    orders.register(mcp)
-    dialogs.register(mcp)
-    kworks.register(mcp)
-    projects.register(mcp)
-    offers.register(mcp)
+    """Register the stable 1.0 read surface and durable write protocol."""
+    read_tools.register(mcp)
+    write_tools.register(mcp)

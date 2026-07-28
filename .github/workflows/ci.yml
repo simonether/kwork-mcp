@@ -7,30 +7,170 @@ on:
     branches: [main]
   workflow_call:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.32"
+  UV_FROZEN: "1"
+
 jobs:
-  lint:
-    runs-on: ubuntu-latest
+  quality:
+    name: Quality and types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v7
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+      - name: Install exact uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          checksum: "aab924fd522efd06f1c5f3b93a243864fc453132c94b2dc49f1371b528a4b967"
           enable-cache: true
-      - run: uv sync --locked --dev
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked --all-groups
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - run: uv run mypy
 
-  test:
-    runs-on: ubuntu-latest
+  tests:
+    name: Tests / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v7
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          enable-cache: true
-      - uses: actions/setup-python@v6
+          persist-credentials: false
+      - name: Install exact uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
+          version: "0.11.32"
+          checksum: "aab924fd522efd06f1c5f3b93a243864fc453132c94b2dc49f1371b528a4b967"
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --locked --dev
-      - run: uv run pytest tests/ -x -v --cov=kwork_mcp --cov-report=term-missing
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked --all-groups
+      - name: Test with branch coverage gate
+        run: >-
+          uv run pytest tests/ -v
+          --cov=kwork_mcp
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml
+
+  package:
+    name: Build and inspect distributions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install exact uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          checksum: "aab924fd522efd06f1c5f3b93a243864fc453132c94b2dc49f1371b528a4b967"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked --all-groups
+      - name: Validate MCP Registry metadata against pinned schema
+        env:
+          MCP_REGISTRY_SCHEMA_URL: "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json"
+          MCP_REGISTRY_SCHEMA_SHA256: "3fba09590c99f61735d234822279f4223fab9e300c0a81e81c91ab62a4114de0"
+        run: |
+          schema_file="$(mktemp)"
+          trap 'rm -f "$schema_file"' EXIT
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "$MCP_REGISTRY_SCHEMA_URL" --output "$schema_file"
+          echo "${MCP_REGISTRY_SCHEMA_SHA256}  ${schema_file}" | sha256sum --check --strict
+          uv run python - "$schema_file" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          from jsonschema.validators import validator_for
+
+          schema = json.loads(Path(sys.argv[1]).read_text())
+          metadata = json.loads(Path("server.json").read_text())
+          validator = validator_for(schema)
+          validator.check_schema(schema)
+          validator(schema).validate(metadata)
+          print("server.json: pinned registry schema valid")
+          PY
+      - name: Verify source and registry versions
+        run: |
+          uv run python - <<'PY'
+          import json
+          import tomllib
+          from pathlib import Path
+          from kwork_mcp.version import __version__
+
+          registry = json.loads(Path("server.json").read_text())
+          pyproject = tomllib.loads(Path("pyproject.toml").read_text())
+          assert pyproject["project"]["dynamic"] == ["version"]
+          assert registry["version"] == __version__
+          assert {item["version"] for item in registry["packages"]} == {__version__}
+          print(f"metadata version: {__version__}")
+          PY
+      - run: uv build --no-sources
+      - run: uv run twine check dist/*
+      - run: uv run check-wheel-contents dist/*.whl
+      - name: Smoke-test installed wheel
+        run: |
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          bash scripts/smoke-wheel.sh "$wheel"
+
+  security:
+    name: Dependency and secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install exact uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          checksum: "aab924fd522efd06f1c5f3b93a243864fc453132c94b2dc49f1371b528a4b967"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked --all-groups
+      - name: Audit locked production dependencies
+        run: |
+          audit_file="$(mktemp)"
+          uv export --quiet --locked --no-dev --no-emit-project --output-file "$audit_file"
+          uv run pip-audit --require-hashes --disable-pip -r "$audit_file"
+      - name: Install checksummed gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          archive="$(mktemp)"
+          tool_dir="${RUNNER_TEMP}/gitleaks-bin"
+          mkdir -p "$tool_dir"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            --output "$archive"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$tool_dir" gitleaks
+          echo "$tool_dir" >> "$GITHUB_PATH"
+          "$tool_dir/gitleaks" version
+      - name: Scan repository history for secrets
+        run: gitleaks git --redact --no-banner --verbose .
