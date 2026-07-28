@@ -67,3 +67,9 @@ def test_workflows_use_explicit_locked_mode_without_conflicting_environment() ->
         workflow = (ROOT / ".github" / "workflows" / name).read_text()
         assert "UV_FROZEN" not in workflow
         assert "uv sync --locked --all-groups" in workflow
+
+
+def test_release_asset_upload_does_not_require_a_checkout() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+
+    assert 'gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY"' in workflow
