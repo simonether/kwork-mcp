@@ -138,7 +138,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           sha256sum dist/* > dist/SHA256SUMS
-          gh release upload "$RELEASE_TAG" dist/*
+          gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY"
 
   publish-mcp-registry:
     name: Publish to MCP Registry
