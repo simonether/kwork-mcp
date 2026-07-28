@@ -60,3 +60,10 @@ def test_release_workflow_fails_closed_for_prerelease_registry_publish() -> None
     assert "needs: [package, publish-pypi]" in workflow
     assert "needs.package.outputs.is_prerelease == 'false'" in workflow
     assert "!github.event.release.prerelease" in workflow
+
+
+def test_workflows_use_explicit_locked_mode_without_conflicting_environment() -> None:
+    for name in ("ci.yml", "release.yml"):
+        workflow = (ROOT / ".github" / "workflows" / name).read_text()
+        assert "UV_FROZEN" not in workflow
+        assert "uv sync --locked --all-groups" in workflow
