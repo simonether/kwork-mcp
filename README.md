@@ -7,10 +7,10 @@
 [![Python](https://img.shields.io/badge/python-3.12%E2%80%933.14-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-`kwork-mcp` 1.0 — production-grade stdio MCP-шлюз к Kwork для работы из Codex. Он
-даёт типизированные read-результаты, проверяет фактический аккаунт, координирует
-лимиты между процессами и проводит все записи через durable `prepare → commit →
-reconcile`.
+`kwork-mcp` 1.0 — production-grade stdio MCP-шлюз к Kwork для Claude Code, Claude
+Desktop, Codex, Cursor и других MCP-клиентов. Он даёт типизированные
+read-результаты, проверяет фактический аккаунт, координирует лимиты между
+процессами и проводит все записи через durable `prepare → commit → reconcile`.
 
 Это breaking redesign. Для миграции с 0.2.x см.
 [руководство по миграции](docs/migration-1.0.md).
@@ -26,7 +26,9 @@ reconcile`.
 - Точный payload, его SHA-256, TTL, confirmation token и idempotency key связаны в
   общем SQLite ledger. Одну операцию выполняет только один процесс.
 - Неоднозначный результат записи не повторяется автоматически: состояние
-  `submission_unknown` требует `reconcile_write`.
+  `submission_unknown` требует `reconcile_write`. Пропавший объект или неизвестный
+  статус не считаются доказательством; если сверка не сходится, оператор фиксирует
+  исход вручную через `kwork-mcp-bootstrap resolve-write`.
 - Лимиты account/route, защита от burst и circuit breaker общие для всех процессов,
   использующих один `KWORK_STATE_DIR`; fingerprint общей policy не позволяет
   процессу с другими лимитами ослабить координацию.
@@ -44,7 +46,7 @@ reconcile`.
 Требуются Python 3.12–3.14 и [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uvx --from kwork-mcp==1.0.0rc1 kwork-mcp-bootstrap --help
+uvx --from kwork-mcp==1.0.0 kwork-mcp-bootstrap --help
 ```
 
 Из исходников:
@@ -70,7 +72,7 @@ uv run kwork-mcp-bootstrap --help
 
 ```bash
 KWORK_EXPECTED_USER_ID=123456 \
-  uvx --from kwork-mcp==1.0.0rc1 kwork-mcp-bootstrap
+  uvx --from kwork-mcp==1.0.0 kwork-mcp-bootstrap
 ```
 
 CLI скрыто запросит login/password, optional phone digits и optional proxy URL,
@@ -86,7 +88,7 @@ account-bound credential record. Если существует legacy `~/.kwork_
 export KWORK_EXPECTED_USER_ID='123456'
 export KWORK_PERSIST_TOKEN='true'
 export KWORK_ENABLE_WRITES='false'
-uvx --from kwork-mcp==1.0.0rc1 kwork-mcp
+uvx --from kwork-mcp==1.0.0 kwork-mcp
 ```
 
 Normal entrypoint fail-closed отклоняет `KWORK_LOGIN`, `KWORK_PASSWORD`,
@@ -122,15 +124,61 @@ proxy либо обновить истёкшую сессию, останови�
 
 Полный справочник: [docs/configuration.md](docs/configuration.md).
 
-## Подключение к Codex
+## Подключение к MCP-клиенту
 
-Сначала выполните bootstrap в обычном терминале, как показано выше. Затем добавьте
-в `~/.codex/config.toml` только безопасные значения:
+Сначала выполните bootstrap в обычном терминале, как показано выше. В конфигурацию
+клиента передаются только безопасные значения: `KWORK_EXPECTED_USER_ID`,
+`KWORK_PERSIST_TOKEN` и `KWORK_ENABLE_WRITES`. Замените `123456` на свой
+`user_id`. После изменения конфигурации перезапустите клиент и вызовите
+`account_status`.
+
+### Claude Code
+
+```bash
+claude mcp add kwork --scope user \
+  -e KWORK_EXPECTED_USER_ID=123456 \
+  -e KWORK_PERSIST_TOKEN=true \
+  -e KWORK_ENABLE_WRITES=false \
+  -- uvx --from kwork-mcp==1.0.0 kwork-mcp
+```
+
+Проверка: `claude mcp list` должен показать `kwork` в состоянии connected.
+
+### Claude Desktop
+
+Добавьте сервер в `claude_desktop_config.json` (Settings → Developer → Edit Config):
+
+```json
+{
+  "mcpServers": {
+    "kwork": {
+      "command": "uvx",
+      "args": ["--from", "kwork-mcp==1.0.0", "kwork-mcp"],
+      "env": {
+        "KWORK_EXPECTED_USER_ID": "123456",
+        "KWORK_PERSIST_TOKEN": "true",
+        "KWORK_ENABLE_WRITES": "false"
+      }
+    }
+  }
+}
+```
+
+Если Claude Desktop не находит `uvx`, укажите абсолютный путь из `which uvx`.
+
+### Cursor
+
+Тот же блок `mcpServers` добавляется в `~/.cursor/mcp.json` (глобально) или в
+`.cursor/mcp.json` проекта.
+
+### Codex
+
+Добавьте в `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.kwork]
 command = "uvx"
-args = ["--from", "kwork-mcp==1.0.0rc1", "kwork-mcp"]
+args = ["--from", "kwork-mcp==1.0.0", "kwork-mcp"]
 
 [mcp_servers.kwork.env]
 KWORK_EXPECTED_USER_ID = "123456"
@@ -152,9 +200,9 @@ KWORK_ENABLE_WRITES = "false"
 ```
 
 Codex CLI, IDE extension и desktop app используют общую MCP-конфигурацию host.
-После изменения перезапустите соответствующий клиент и вызовите `account_status`.
-Никогда не добавляйте туда token/login/password/phone/proxy — ни как `env`, ни как
-`env_vars`, ни как arguments.
+
+Ни в одном клиенте не добавляйте token/login/password/phone/proxy — ни как `env`,
+ни как `env_vars`, ни как arguments: сервер откажется запускаться.
 
 ## MCP tools
 
@@ -162,7 +210,7 @@ Codex CLI, IDE extension и desktop app используют общую MCP-ко
 
 | Tool | Результат |
 |---|---|
-| `account_status` | Фактический account ID, binding и готовность writes |
+| `account_status` | Фактический account ID, binding, готовность writes и `unresolved_write_ids` |
 | `get_connects` | Активные и общие коннекты |
 | `get_user_info`, `search_users` | Профиль/поиск пользователей |
 | `discover_projects` | `favorites`, `all` или `category_ids`, фильтры и opaque cursor |
@@ -197,7 +245,9 @@ Codex CLI, IDE extension и desktop app используют общую MCP-ко
 3. Передайте неизменённые `write_id`, `payload_hash` и `confirmation_token` в
    `commit_write`.
 4. Если state равен `submission_unknown`, не вызывайте commit повторно. После
-   visibility window вызовите `reconcile_write(write_id)`.
+   visibility window вызовите `reconcile_write(write_id)`. Пока такая запись не
+   сверена, новые commit для аккаунта отклоняются с `ambiguous_write`, а
+   `error.related_write_id` называет запись, которую нужно сверить.
 5. `get_write_status` читает durable ledger без remote write.
 
 Пример payload для подготовки оффера:
@@ -223,6 +273,17 @@ idempotency key и другим request возвращает `idempotency_confli
 после потери ответа `prepare`, не создавая второй intent. После claim/terminal state
 confirmation token больше не выдаётся; состояние читается через
 `get_write_status`.
+
+Если `reconcile_write` долго остаётся неоднозначным (например, кворк ушёл на
+модерацию или сообщение удалено), проверьте операцию на kwork.ru и зафиксируйте
+исход вручную. Команды запускаются с теми же `KWORK_*` настройками, что и сервер,
+а `resolve-write` требует TTY и явного подтверждения:
+
+```bash
+kwork-mcp-bootstrap pending-writes
+kwork-mcp-bootstrap resolve-write <write_id> succeeded
+kwork-mcp-bootstrap resolve-write <write_id> absent
+```
 
 ## Модель результата и ошибок
 
@@ -259,7 +320,7 @@ upstream-контракта, типизацию данных и безопасн
 pipeline/business logic.
 
 MCP Tasks отключены. Стабильная спецификация считает их экспериментальными, а
-Codex-клиенту для коротких Kwork API-вызовов durable task lifecycle не даёт пользы.
+MCP-клиенту для коротких Kwork API-вызовов durable task lifecycle не даёт пользы.
 Durability write-flow реализована внутри ledger и доступна обычными tools без
 нестабильного protocol surface.
 

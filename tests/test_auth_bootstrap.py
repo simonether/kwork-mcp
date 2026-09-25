@@ -965,7 +965,7 @@ async def test_bootstrap_cli_rejects_non_tty_and_unknown_argv_without_reflection
     [
         (["--help"], "kwork-mcp-bootstrap"),
         (["-h"], "kwork-mcp-bootstrap"),
-        (["--version"], "1.0.0rc1"),
+        (["--version"], "1.0.0"),
     ],
 )
 async def test_bootstrap_help_and_version_need_no_tty_or_configuration(

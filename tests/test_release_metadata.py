@@ -43,7 +43,7 @@ def test_versions_and_console_entrypoints_are_consistent() -> None:
     registry = json.loads((ROOT / "server.json").read_text())
 
     assert project["dynamic"] == ["version"]
-    assert registry["version"] == __version__ == "1.0.0rc1"
+    assert registry["version"] == __version__ == "1.0.0"
     assert registry["packages"][0]["version"] == __version__
     assert project["scripts"] == {
         "kwork-mcp": "kwork_mcp:main",
