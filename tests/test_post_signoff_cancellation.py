@@ -11,7 +11,8 @@ from kwork.schema.actor import Actor
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.coordination import CoordinationStore, StoredWrite
 from kwork_mcp.errors import AmbiguousWriteError, GatewayError
-from kwork_mcp.gateway import KworkGateway, _finish_shielded_task
+from kwork_mcp.gateway import KworkGateway
+from kwork_mcp.gateway.parsing import _finish_shielded_task
 from kwork_mcp.models import ErrorCode, WriteAction, WriteState
 
 

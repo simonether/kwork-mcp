@@ -13,8 +13,8 @@ from kwork.schema.category import ParentCategory
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.coordination import CoordinationStore, StoredWrite
 from kwork_mcp.errors import AmbiguousWriteError, GatewayError
-from kwork_mcp.gateway import (
-    KworkGateway,
+from kwork_mcp.gateway import KworkGateway
+from kwork_mcp.gateway.parsing import (
     _as_json_dict,
     _as_json_list,
     _epoch_seconds,
