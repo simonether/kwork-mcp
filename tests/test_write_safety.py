@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -498,6 +499,101 @@ async def test_bootstrap_cli_escapes_terminal_controls_in_write_summaries(
         assert "\\u202e" in rendered
         assert "Отзыв" in rendered
     assert json.loads(listed.getvalue())["writes"][0]["request"]["title"] == "Отзыв\u202eтекст\u009b"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("argv", "stdin_text", "tty", "expected_code", "expected_message"),
+    [
+        (["pending-writes", "extra"], "", True, 2, "не принимает аргументы"),
+        (["resolve-write", "only-id"], "", True, 2, "Использование"),
+        (["resolve-write", "WRITE", "maybe"], "", True, 2, "Использование"),
+        (["resolve-write", "WRITE", "absent"], "", False, 2, "TTY"),
+        (["resolve-write", "00000000-0000-0000-0000-00000000dead", "absent"], "", True, 1, "not_found"),
+        (["resolve-write", "WRITE", "absent"], "", True, 130, "не изменена"),
+    ],
+)
+async def test_bootstrap_cli_write_admin_rejects_bad_usage(
+    config_factory: Callable[..., KworkConfig],
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    stdin_text: str,
+    tty: bool,
+    expected_code: int,
+    expected_message: str,
+) -> None:
+    config = _writes_config(config_factory)
+    gateway = TimeoutGateway(config)
+    unknown = await _prepare_and_commit(gateway, _offer(), "cli-usage")
+    _operator_environment(monkeypatch, config)
+    stream_type = TTYBuffer if tty else io.StringIO
+
+    code = await run_bootstrap_cli(
+        [unknown.write_id if item == "WRITE" else item for item in argv],
+        stdin=stream_type(stdin_text),
+        stdout=(stdout := io.StringIO()),
+        stderr=(stderr := stream_type()),
+    )
+
+    assert code == expected_code
+    assert expected_message in stderr.getvalue()
+    assert stdout.getvalue() == ""
+    record = await gateway.coordinator.get_write(unknown.write_id, scope=SCOPE)
+    assert record is not None
+    assert record.state is WriteState.SUBMISSION_UNKNOWN
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_cli_does_not_resolve_a_settled_write(
+    config_factory: Callable[..., KworkConfig],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _writes_config(config_factory)
+    gateway = SafetyGateway(config)
+    prepared = await gateway.prepare_write(_offer(), "cli-settled", correlation_id="prepare")
+    _operator_environment(monkeypatch, config)
+
+    code = await run_bootstrap_cli(
+        ["resolve-write", prepared.write_id, "succeeded"],
+        stdin=TTYBuffer("да\n"),
+        stdout=io.StringIO(),
+        stderr=(stderr := TTYBuffer()),
+    )
+
+    assert code == 1
+    assert "prepared" in stderr.getvalue()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("env", "expected_code", "expected_message"),
+    [
+        ({"KWORK_STATE_DIR": "relative/state"}, 2, "KWORK_STATE_DIR"),
+        ({}, 2, "KWORK_EXPECTED_USER_ID"),
+    ],
+)
+async def test_bootstrap_cli_write_admin_requires_valid_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    env: dict[str, str],
+    expected_code: int,
+    expected_message: str,
+) -> None:
+    for name in [name for name in os.environ if name.upper().startswith("KWORK_")]:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("KWORK_STATE_DIR", str(tmp_path))
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+
+    code = await run_bootstrap_cli(
+        ["pending-writes"],
+        stdin=TTYBuffer(),
+        stdout=io.StringIO(),
+        stderr=(stderr := TTYBuffer()),
+    )
+
+    assert code == expected_code
+    assert expected_message in stderr.getvalue()
 
 
 @pytest.mark.asyncio
