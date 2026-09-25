@@ -3,6 +3,56 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 проект следует [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-09-25
+
+Первый стабильный релиз 1.0. Все read-tools проверены на реальном аккаунте Kwork.
+
+### Added
+
+- `account_status.unresolved_write_ids` и `error.related_write_id`: блокировка
+  записей аккаунта теперь называет запись, которую нужно сверить.
+- `kwork-mcp-bootstrap pending-writes` и `kwork-mcp-bootstrap resolve-write
+  <write_id> succeeded|absent`: оператор фиксирует исход записи, которую
+  read-back не может разрешить (TTY и явное подтверждение).
+- Инструкции подключения для Claude Code, Claude Desktop и Cursor.
+
+### Changed
+
+- `gateway.py` разделён на пакет `kwork_mcp.gateway`: reads, lookups, offer web
+  flow, отдельный handler на каждое write-действие и durable write protocol.
+- Для `submit_offer` durable remote boundary пересекает только финальный вызов
+  создания оффера: сбой открытия формы, черновика или CSRF оставляет запись
+  `prepared`, а CSRF/auth сбрасывает web-сессию для повторного входа.
+- Preflight, который не смог прийти к выводу, возвращает запись в `prepared` с
+  retryable-ошибкой вместо `failed_known` или ложного требования reconcile.
+- Прокси: только `http`, `socks4`, `socks5` с явным портом, как поддерживает
+  коннектор; схема приводится к нижнему регистру.
+- Сервер стартует без баннера FastMCP (он делал непроксированный запрос к PyPI и
+  писал кэш вне `KWORK_STATE_DIR`); ошибки конфигурации выводятся без traceback.
+- Классификатор Development Status — Production/Stable; MCP Registry
+  публикуется для стабильного релиза.
+
+### Fixed
+
+- `list_my_kworks` падал на агрегатной группе «Все» (id 0); вложенные группы
+  статусов тоже обрабатываются.
+- `get_exchange_info` отвергал настоящий ответ `exchangeInfo` без флага
+  `success`.
+- `list_notifications` считал пустой ответ `{"success": true}` дрейфом контракта.
+- «Повторите попытку позже» и «временно недоступен» классифицировались как
+  `duplicate`/`permission`; теперь это retryable `upstream_unavailable`, и
+  неотправленный оффер больше не выдаётся за уже существующий.
+- Созданный оффер, чей ID не удалось найти из-за rate limit, записывался как
+  `failed_known` с `safe_to_retry`; теперь это `submission_unknown`.
+- Reconcile считал пропавшие сообщение, диалог, заказ или кворк и статус вроде
+  «На модерации» доказательством отсутствия записи. Теперь это неоднозначно, а
+  правка сообщения и смена статуса кворка сверяются с состоянием на момент prepare.
+- Короткий логин прокси (например, `user`) портил ключи вроде `user_id` при
+  redaction и ломал `list_dialogs`.
+- Bootstrap называл виновником окружение при опечатке во введённом значении.
+- `cryptography` 50.0.1 (PYSEC-2026-3552); в релизном `SHA256SUMS` теперь
+  голые имена файлов.
+
 ## [1.0.0rc1] - 2026-07-28
 
 ### Added
@@ -75,4 +125,5 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
+[1.0.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.0.0
 [1.0.0rc1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.0.0rc1

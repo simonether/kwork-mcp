@@ -3,7 +3,7 @@
   "name": "io.github.simonether/kwork-mcp",
   "title": "Kwork",
   "description": "Account-bound, typed and durable stdio MCP gateway for the Kwork freelance marketplace",
-  "version": "1.0.0rc1",
+  "version": "1.0.0",
   "websiteUrl": "https://github.com/simonether/kwork-mcp",
   "repository": {
     "url": "https://github.com/simonether/kwork-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "kwork-mcp",
-      "version": "1.0.0rc1",
+      "version": "1.0.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

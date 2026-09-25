@@ -8,9 +8,9 @@ requires-python = ">=3.12,<3.15"
 authors = [
     { name = "Simon Sudarushkin", email = "simonsudarushkin@gmail.com" },
 ]
-keywords = ["mcp", "kwork", "freelance", "codex", "mcp-server"]
+keywords = ["mcp", "mcp-server", "kwork", "freelance", "claude", "codex", "cursor"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",

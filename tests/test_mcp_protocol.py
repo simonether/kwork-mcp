@@ -383,7 +383,7 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
         assert initialized is not None
         assert initialized.protocolVersion == "2025-11-25"
         assert initialized.serverInfo.name == "kwork"
-        assert initialized.serverInfo.version == __version__ == "1.0.0rc1"
+        assert initialized.serverInfo.version == __version__ == "1.0.0"
         assert initialized.instructions == SERVER_INSTRUCTIONS
         assert initialized.capabilities.tools is not None
         assert initialized.capabilities.tasks is None
