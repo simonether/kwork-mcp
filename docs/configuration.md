@@ -23,7 +23,8 @@ KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap
 Login, password, optional last-four phone digits и optional proxy URL считываются
 через `getpass`, никогда не принимаются в argv и не выводятся. Proxy URL допускает
 только `http`, `socks4` и `socks5` с явным port; `https`, `socks5h`, path, query и
-fragment отклоняются, scheme приводится к нижнему регистру. Bootstrap выполняет
+fragment отклоняются; URL сохраняется как введён, чтобы записи rc1 оставались
+валидными. Bootstrap выполняет
 только authentication + `get_me`, проверяет exact numeric ID и затем сохраняет
 record. Normal `kwork-mcp` требует `EXPECTED_USER_ID + PERSIST_TOKEN=true` и
 проверяет сохранённый token через `get_me`; если record отсутствует, возвращается

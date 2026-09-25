@@ -8,6 +8,7 @@ proven lives in one place instead of three parallel ``if/elif`` chains.
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any, ClassVar, Literal, cast
 
@@ -556,11 +557,16 @@ class SubmitOrderApprovalHandler(ActionHandler[SubmitOrderApprovalRequest]):
         }
 
 
+_ACTIVE_GROUP = re.compile(r"\bактив")
+_PAUSED_GROUP = re.compile(r"\b(?:пауз|останов)")
+
+
 def _kwork_state(group_name: str | None) -> Literal["active", "paused"] | None:
+    # Word-start matching keeps a group such as "inactive" from reading as active.
     name = (group_name or "").casefold()
-    if "актив" in name:
+    if _ACTIVE_GROUP.search(name):
         return "active"
-    if "пауз" in name or "останов" in name:
+    if _PAUSED_GROUP.search(name):
         return "paused"
     return None
 

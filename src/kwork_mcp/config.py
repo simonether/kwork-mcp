@@ -87,7 +87,9 @@ def normalize_proxy_url(value: str) -> str:
         raise ValueError("proxy URL port must be between 1 and 65535")
     if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
         raise ValueError("proxy URL cannot contain a path, query, or fragment")
-    return scheme + normalized[len(parsed.scheme) :]
+    # Returned verbatim: saved account records are re-validated by equality,
+    # and the connector's own URL parsing lowercases the scheme.
+    return normalized
 
 
 def proxy_redaction_secrets(value: str) -> tuple[str, ...]:

@@ -105,7 +105,7 @@ def test_configuration_normalizes_optional_secrets_and_scopes(tmp_path: Path) ->
         state_dir=tmp_path,
     )
     assert login.phone_last_value == "1234"
-    assert login.proxy_value == "http://alice:secret@proxy.example:443"
+    assert login.proxy_value == "HTTP://alice:secret@proxy.example:443"
     assert {
         "User@Example.Test",
         "password",

@@ -50,10 +50,11 @@ minor/patch был бы вводящим в заблуждение. Ему пр�
   `show_banner=False`, без непроксированного PyPI update check и cache вне
   `KWORK_STATE_DIR`.
 - Proxy ограничен `http`, `socks4`, `socks5` с явным port; `https` и `socks5h`
-  отклоняются, scheme приводится к нижнему регистру. Отдельные proxy user/host
-  fragments короче 8 символов больше не редактируются сами по себе, а JSON keys
-  теряют только secrets от 8 символов и URL userinfo; password и полные формы
-  proxy URL редактируются всегда.
+  отклоняются; регистр scheme сохраняется, поэтому сохранённые в rc1 записи
+  остаются валидными. Отдельные proxy user/host fragments короче 8 символов больше
+  не регистрируются как secrets, поэтому `user_id` не становится
+  `<redacted>_id`; password и полные формы proxy URL редактируются всегда, в
+  значениях и в ключах.
 - `cryptography` 50.0.1 и `pip` 26.2.1 в `uv.lock` по security advisories.
   `SHA256SUMS` в release содержит голые имена файлов, поэтому
   `sha256sum --check SHA256SUMS` работает в каталоге скачанных assets.

@@ -760,10 +760,8 @@ def test_redaction_checks_raw_sensitive_keys_and_longest_secret_first() -> None:
         },
         secrets=("token", short, long),
     )
-    # "token" is too short to be distinctive, so the structural key survives;
-    # its value is still redacted because the key itself is sensitive.
     assert sanitized == {
-        "token": "<redacted>",
+        "<redacted>": "<redacted>",
         "safe": "<redacted> <redacted>",
     }
     rendered = redact_text(f"{long} {short}", (short, long))

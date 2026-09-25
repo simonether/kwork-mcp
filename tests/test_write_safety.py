@@ -8,6 +8,7 @@ import json
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -447,6 +448,59 @@ async def test_bootstrap_cli_lists_and_resolves_unknown_writes(
 
 
 @pytest.mark.asyncio
+async def test_bootstrap_cli_refuses_a_missing_ledger_instead_of_creating_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_dir = tmp_path / "not-the-server-state"
+    monkeypatch.setenv("KWORK_EXPECTED_USER_ID", str(ACCOUNT_ID))
+    monkeypatch.setenv("KWORK_STATE_DIR", str(state_dir))
+
+    code = await run_bootstrap_cli(
+        ["pending-writes"],
+        stdin=TTYBuffer(),
+        stdout=(stdout := io.StringIO()),
+        stderr=(stderr := TTYBuffer()),
+    )
+
+    assert code == 1
+    assert stdout.getvalue() == ""
+    assert "KWORK_STATE_DIR" in stderr.getvalue()
+    assert not (state_dir / "coordination.sqlite3").exists()
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_cli_escapes_terminal_controls_in_write_summaries(
+    config_factory: Callable[..., KworkConfig],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _writes_config(config_factory)
+    gateway = TimeoutGateway(config)
+    request = _offer().model_copy(update={"title": "Отзыв\u202eтекст\u009b"})
+    unknown = await _prepare_and_commit(gateway, request, "cli-controls")
+    _operator_environment(monkeypatch, config)
+
+    code = await run_bootstrap_cli(
+        ["pending-writes"], stdin=TTYBuffer(), stdout=(listed := io.StringIO()), stderr=TTYBuffer()
+    )
+    assert code == 0
+    code = await run_bootstrap_cli(
+        ["resolve-write", unknown.write_id, "absent"],
+        stdin=TTYBuffer("нет\n"),
+        stdout=io.StringIO(),
+        stderr=(summary := TTYBuffer()),
+    )
+    assert code == 1
+
+    for rendered in (listed.getvalue(), summary.getvalue()):
+        assert "\u202e" not in rendered
+        assert "\u009b" not in rendered
+        assert "\\u202e" in rendered
+        assert "Отзыв" in rendered
+    assert json.loads(listed.getvalue())["writes"][0]["request"]["title"] == "Отзыв\u202eтекст\u009b"
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_cli_resolution_requires_explicit_confirmation(
     config_factory: Callable[..., KworkConfig],
     monkeypatch: pytest.MonkeyPatch,
@@ -617,6 +671,22 @@ async def test_set_kwork_state_read_back_is_ambiguous_for_other_groups(
 
 
 @pytest.mark.asyncio
+async def test_inactive_group_name_is_not_mistaken_for_active(
+    config_factory: Callable[..., KworkConfig],
+) -> None:
+    gateway = SafetyGateway(_writes_config(config_factory))
+    gateway.kworks = [_kwork(9, "Неактивные")]
+
+    with pytest.raises(AmbiguousWriteError):
+        await gateway._read_back(
+            WriteAction.SET_KWORK_STATE,
+            {"action": "set_kwork_state", "kwork_id": 7, "target_state": "active"},
+            {"kwork_status_group_id_at_prepare": 3},
+            _record(WriteAction.SET_KWORK_STATE),
+        )
+
+
+@pytest.mark.asyncio
 async def test_missing_order_is_not_evidence_of_absent_approval(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
@@ -674,6 +744,36 @@ async def test_inconclusive_commit_preflight_returns_write_to_prepared(
     assert status is not None
     assert status.state is WriteState.PREPARED
     assert status.can_commit is True
+
+
+@pytest.mark.asyncio
+async def test_inconclusive_commit_preflight_on_expired_write_reports_expiry(
+    config_factory: Callable[..., KworkConfig],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _writes_config(config_factory)
+    gateway = SafetyGateway(config)
+    gateway.messages[5] = _message("Старый текст")
+    prepared = await gateway.prepare_write(_edit_request(), "edit-expires", correlation_id="prepare")
+    assert prepared.confirmation_token is not None
+    clock = {"now": time.time()}
+    monkeypatch.setattr("kwork_mcp.coordination.time.time", lambda: clock["now"])
+
+    async def lookup_after_ttl(**_kwargs: Any) -> MessageRecord | None:
+        clock["now"] += config.preparation_ttl_seconds + 1
+        raise AmbiguousWriteError("message_lookup_missing_stable_id")
+
+    gateway._find_message = lookup_after_ttl  # type: ignore[method-assign]
+
+    status = await gateway.commit_write(
+        write_id=prepared.write_id,
+        payload_hash=prepared.payload_hash,
+        confirmation_token=prepared.confirmation_token,
+        correlation_id="commit",
+    )
+
+    assert status.state is WriteState.EXPIRED
+    assert status.can_commit is False
 
 
 @pytest.mark.asyncio

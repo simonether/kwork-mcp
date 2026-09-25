@@ -43,14 +43,14 @@ non-sticky `0777/child-0700` намеренно неприемлем.
 - Login/password/phone/proxy вводятся только separate `kwork-mcp-bootstrap` через
   настоящий TTY/getpass; server не принимает их ни через argv, ни через env.
 - Proxy URL допускает только `http`, `socks4` и `socks5` с явным port (то, что
-  поддерживает connector); `https` и `socks5h` отклоняются, scheme приводится к
-  нижнему регистру.
+  поддерживает connector); `https` и `socks5h` отклоняются. URL сохраняется как
+  введён: account record перепроверяется на точное равенство.
 - Runtime-loaded token, proxy password и raw/decoded/yarl-canonical формы full
   proxy URL, authority и userinfo всегда регистрируются для redaction в логах и
   external MCP payload. Отдельные proxy username/host fragments редактируются
   только от 8 символов (`MIN_DISTINCTIVE_SECRET_LENGTH`): короткие вроде `user`
-  совпадали бы с обычными данными. В JSON keys удаляются только secrets от 8
-  символов и URL userinfo, поэтому `user_id` не становится `<redacted>_id`.
+  совпадали бы с обычными данными и превращали `user_id` в `<redacted>_id`. Все
+  зарегистрированные secrets удаляются и из значений, и из JSON keys.
   Percent escapes canonicalized по hex case при сопоставлении. Все exact
   совпадения ищутся в исходной строке, после чего overlapping/touching интервалы
   объединяются до общего authority parser, который отделяет userinfo по
