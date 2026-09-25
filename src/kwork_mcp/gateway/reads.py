@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal, cast
 
 from kwork import Kwork
+from kwork.exceptions import KworkHTTPException
 
 from kwork_mcp.contracts import enforce_route_params
 from kwork_mcp.coordination import pages_from_paging
@@ -40,6 +41,21 @@ from kwork_mcp.models import (
     UserRecord,
 )
 from kwork_mcp.security import sanitize_external
+
+
+def _is_status_group(value: Any) -> bool:
+    return isinstance(value, dict) and "kworks" in value and "kworks_count" in value
+
+
+def _bare_exchange_info(error: KworkHTTPException) -> dict[str, Any] | None:
+    """exchangeInfo answers with a bare object that has no ``success`` flag."""
+
+    payload = error.response_json
+    if error.status != 200 or not isinstance(payload, dict) or not payload:
+        return None
+    if any(key in payload for key in ("success", "error", "error_code", "errors")):
+        return None
+    return payload
 
 
 class ReadOperations(GatewayBase):
@@ -399,10 +415,17 @@ class ReadOperations(GatewayBase):
 
     async def get_exchange_info(self) -> RawObjectData:
         enforce_route_params("exchange_info", {})
-        data = await self.session.call_read(
-            "exchange-info",
-            lambda client: client.exchange_info(use_token=True),
-        )
+
+        async def load(client: Kwork) -> Any:
+            try:
+                return await client.exchange_info(use_token=True)
+            except KworkHTTPException as error:
+                bare = _bare_exchange_info(error)
+                if bare is None:
+                    raise
+                return {"success": True, "response": bare}
+
+        data = await self.session.call_read("exchange-info", load)
         raw_response = _response(data, "exchangeInfo")
         if not isinstance(raw_response, dict | list):
             raise ContractDriftError("exchangeInfo:unexpected_response")
@@ -778,9 +801,15 @@ class ReadOperations(GatewayBase):
             group_count = group.get("kworks_count")
             if isinstance(group_count, bool) or not isinstance(group_count, int) or group_count < 0:
                 raise ContractDriftError("kwork.group_count_invalid")
-            embedded_items = group.get("kworks")
-            if not isinstance(embedded_items, list):
+            embedded_values = group.get("kworks")
+            if not isinstance(embedded_values, list):
                 raise ContractDriftError("kwork.group.items_not_array")
+            # Older responses nest sibling status groups inside a group's
+            # ``kworks`` array; they are groups, not kworks of this group.
+            nested_groups = [value for value in embedded_values if _is_status_group(value)]
+            embedded_items = [value for value in embedded_values if not _is_status_group(value)]
+            for nested_group in nested_groups:
+                await visit_group(nested_group)
             if len(embedded_items) > group_count or (group_count == 0 and embedded_items):
                 raise ContractDriftError("kwork.group_count_inconsistent")
             if group_count > 0 and not embedded_items:
@@ -863,6 +892,10 @@ class ReadOperations(GatewayBase):
                 items.append(record)
 
         for group in raw_response:
+            # The aggregate "all kworks" group (id 0) repeats kworks from every real
+            # status group; each kwork is collected through its own group.
+            if isinstance(group, dict) and group.get("id") == 0:
+                continue
             await visit_group(group)
         return ItemCollection[KworkRecord](
             items=items,
@@ -944,7 +977,10 @@ class ReadOperations(GatewayBase):
             "notifications",
             lambda client: client.get_notifications(),
         )
-        raw_response = _response(data, "notifications")
+        # With nothing to report Kwork answers ``{"success": true}`` alone.
+        raw_response = _response(data, "notifications", require_response=False)
+        if raw_response is None:
+            return RawObjectData(raw=[])
         if not isinstance(raw_response, dict | list):
             raise ContractDriftError("notifications:unexpected_response")
         raw = sanitize_external(
