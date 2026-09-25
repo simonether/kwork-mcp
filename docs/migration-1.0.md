@@ -8,8 +8,8 @@
 1. Остановите все процессы 0.2.x.
 2. Запишите фактический Kwork `user_id` через доверенный UI/API.
 3. Сохраните backup старого state, если он нужен; не публикуйте его.
-4. Для release candidate обновите Codex command до exact
-   `kwork-mcp==1.0.0rc1`; после stable release замените его на `1.0.0`.
+4. Обновите Codex command до exact `kwork-mcp==1.0.0`, например
+   `uvx --from kwork-mcp==1.0.0 kwork-mcp`.
 
 ## Конфигурация
 
@@ -94,6 +94,13 @@ idempotency key/request возвращает ту же `prepared` запись �
 token. Не создавайте новый key. После claim/terminal state token повторно не
 выдаётся.
 
+Пока у аккаунта есть `submission_unknown`, любой commit отклоняется
+`ambiguous_write` с `error.related_write_id`; `account_status.unresolved_write_ids`
+показывает все такие записи. Сначала вызовите `reconcile_write` для них. Если
+read-back не сходится, оператор проверяет Kwork вручную и выполняет
+`kwork-mcp-bootstrap pending-writes` / `resolve-write <write_id> succeeded|absent`
+в TTY с тем же `KWORK_*` env, что и server (см. [configuration](configuration.md)).
+
 ## State и эксплуатация
 
 Создайте локальный абсолютный state directory на надёжном filesystem. Он должен
@@ -116,3 +123,22 @@ private `0700` child теперь fail-closed отклоняется.
 `credential_update_unknown` означает сбой после commit point atomic replace:
 новый record уже может быть видим, поэтому сначала проверьте store повторным
 bootstrap, а не делайте вывод, что старый token гарантированно сохранился.
+
+## Обновление с 1.0.0rc1
+
+1. Остановите процессы rc1 и замените pin на `kwork-mcp==1.0.0`. State directory,
+   ledger schema и fingerprint общей policy не изменились, поэтому rc1 state можно
+   использовать с теми же `KWORK_*` значениями.
+2. Proxy теперь ограничен `http`, `socks4`, `socks5` с явным port, scheme — в
+   нижнем регистре. Record rc1 с `https` proxy, без port или со scheme в верхнем
+   регистре при загрузке даёт `validation`: повторите bootstrap с поддерживаемым
+   URL.
+3. Временные ответы Kwork («повторите попытку позже», «временно недоступен»)
+   теперь retryable `upstream_unavailable`, а не `duplicate`/`permission`.
+4. Commit-time preflight с неокончательной ошибкой (неоднозначный read,
+   `contract_drift`, captcha/CSRF и т.п.) больше не переводит запись в
+   `failed_known`: она остаётся `prepared`. Неоднозначный preflight read
+   возвращается как retryable `upstream_unavailable`, а не `ambiguous_write`.
+5. Записи `edit_message`/`set_kwork_state`, подготовленные rc1, не содержат
+   prepare-time evidence: для edit read-back может подтвердить только успех, для
+   set-state отсутствием считается лишь противоположное состояние.

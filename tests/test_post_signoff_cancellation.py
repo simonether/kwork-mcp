@@ -420,13 +420,18 @@ async def test_pre_boundary_adapter_failure_releases_confirmation_for_retry(
     )
     gateway = ImmediateFailureGateway(config, store, failure)
 
-    with pytest.raises(type(failure)):
+    # Nothing reached Kwork, so the caller must not be told to reconcile.
+    expected = GatewayError if isinstance(failure, AmbiguousWriteError) else type(failure)
+    with pytest.raises(expected) as caught:
         await gateway.commit_write(
             write_id=record.write_id,
             payload_hash=record.payload_hash,
             confirmation_token=token,
             correlation_id="immediate-failure",
         )
+    if isinstance(caught.value, GatewayError):
+        assert caught.value.reconciliation_required is False
+        assert caught.value.retryable is True
     persisted = await store.get_write(record.write_id, scope="account-42")
     assert persisted is not None
     assert persisted.state is WriteState.PREPARED

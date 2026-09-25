@@ -87,6 +87,7 @@ class SafetySession:
         self.web_client = SimpleNamespace(web=web or OfferWeb(), session=SimpleNamespace(cookie_jar=CookieJar()))
         self.web_invalidations = 0
         self.remote_steps: list[tuple[str, bool]] = []
+        self.locally_throttled_routes: set[str] = set()
 
     @asynccontextmanager
     async def exclusive_client(self) -> Any:
@@ -115,6 +116,9 @@ class SafetySession:
         before_remote_attempt: Callable[[], Awaitable[None]] | None = None,
     ) -> Any:
         self.remote_steps.append((route, before_remote_attempt is not None))
+        if route in self.locally_throttled_routes:
+            # The shared limiter refuses before the boundary, as in the session.
+            raise GatewayError(ErrorCode.RATE_LIMIT, retryable=True, safe_to_retry=True, diagnostic="local")
         if before_remote_attempt is not None:
             await before_remote_attempt()
         return await operation(self.web_client)
@@ -300,6 +304,31 @@ async def test_offer_remote_boundary_is_the_final_create_step(
 
     assert committed.state is WriteState.SUCCEEDED
     assert [route for route, crosses in session.remote_steps if crosses] == ["write-offer-final"]
+
+
+@pytest.mark.asyncio
+async def test_local_throttle_before_final_create_is_retryable_not_ambiguous(
+    config_factory: Callable[..., KworkConfig],
+) -> None:
+    session = SafetySession()
+    session.locally_throttled_routes.add("write-offer-final")
+    gateway = SafetyGateway(_writes_config(config_factory), session)
+    prepared = await gateway.prepare_write(_offer(), "offer-local-throttle", correlation_id="prepare")
+    assert prepared.confirmation_token is not None
+
+    with pytest.raises(GatewayError) as failure:
+        await gateway.commit_write(
+            write_id=prepared.write_id,
+            payload_hash=prepared.payload_hash,
+            confirmation_token=prepared.confirmation_token,
+            correlation_id="commit",
+        )
+
+    assert failure.value.code is ErrorCode.RATE_LIMIT
+    assert failure.value.reconciliation_required is False
+    status = await gateway.get_write_status(prepared.write_id, correlation_id="status")
+    assert status is not None
+    assert status.state is WriteState.PREPARED
 
 
 # --- account write barrier: always identifiable and resolvable
