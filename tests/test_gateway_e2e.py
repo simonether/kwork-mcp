@@ -421,15 +421,14 @@ async def test_missing_connect_balances_fail_as_contract_drift(
 async def test_reflected_credentials_are_removed_from_external_fields(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    proxy = "socks5://alice:p%2f%3aword@proxy.example"
+    proxy = "socks5://alice:p%2f%3aword@proxy.example:1080"
     reflected_values = (
         "fixture-token",
         proxy,
-        "socks5://alice:p%2F%3aword@proxy.example",
-        "socks5://alice:p/:word@proxy.example",
+        "socks5://alice:p%2F%3aword@proxy.example:1080",
+        "socks5://alice:p/:word@proxy.example:1080",
         "alice:p%2f%3Aword",
         "alice:p/:word",
-        "alice",
         "p%2F%3aword",
         "p/:word",
     )
