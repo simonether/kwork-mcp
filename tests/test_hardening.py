@@ -148,6 +148,27 @@ def test_main_reports_invalid_configuration_without_traceback(
     assert captured.out == ""
 
 
+def test_main_reports_steady_state_violations_without_values(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    _clear_kwork_environment(monkeypatch)
+    monkeypatch.setenv("KWORK_EXPECTED_USER_ID", "42")
+    monkeypatch.setenv("KWORK_STATE_DIR", str(tmp_path))
+
+    def reject(_config: Any) -> Any:
+        raise ValueError("normal MCP server requires KWORK_EXPECTED_USER_ID and KWORK_PERSIST_TOKEN=true")
+
+    monkeypatch.setattr("kwork_mcp.config.validate_steady_state_server_config", reject)
+
+    with pytest.raises(SystemExit) as exited:
+        kwork_mcp.main([])
+
+    assert exited.value.code == 2
+    assert "KWORK_PERSIST_TOKEN=true" in capsys.readouterr().err
+
+
 class TTYBuffer(io.StringIO):
     def isatty(self) -> bool:
         return True
