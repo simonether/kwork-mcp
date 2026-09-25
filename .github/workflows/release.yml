@@ -137,7 +137,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          sha256sum dist/* > dist/SHA256SUMS
+          # Bare file names, so `sha256sum --check SHA256SUMS` works in a
+          # directory of downloaded release assets.
+          (cd dist && sha256sum -- *.whl *.tar.gz > SHA256SUMS)
           gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY"
 
   publish-mcp-registry:
