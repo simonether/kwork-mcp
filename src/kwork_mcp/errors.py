@@ -158,6 +158,17 @@ def _business_error(text: str) -> ErrorCode | None:
         ),
         (
             (
+                "временно недоступ",
+                "попробуйте позже",
+                "повторите попытку позже",
+                "повторите позже",
+                "try again later",
+                "temporarily unavailable",
+            ),
+            ErrorCode.UPSTREAM_UNAVAILABLE,
+        ),
+        (
+            (
                 "insufficient connect",
                 "not enough connect",
                 "недостаточно коннект",
@@ -170,12 +181,10 @@ def _business_error(text: str) -> ErrorCode | None:
             (
                 "already sent",
                 "already exists",
-                "already",
                 "offer exists",
                 "duplicate",
                 "уже отправ",
                 "уже существует",
-                "повтор",
             ),
             ErrorCode.DUPLICATE,
         ),
@@ -190,7 +199,17 @@ def _business_error(text: str) -> ErrorCode | None:
             ),
             ErrorCode.IP_BLOCKED,
         ),
-        (("permission", "forbidden", "доступ"), ErrorCode.PERMISSION),
+        (
+            (
+                "permission",
+                "forbidden",
+                "access denied",
+                "нет доступа",
+                "доступ запрещ",
+                "доступ ограничен",
+            ),
+            ErrorCode.PERMISSION,
+        ),
         (("not found", "не найден"), ErrorCode.NOT_FOUND),
     )
     for needles, code in patterns:
@@ -204,7 +223,7 @@ def _classified_business_error(
     *,
     diagnostic: str,
 ) -> GatewayError:
-    if code is ErrorCode.RATE_LIMIT:
+    if code in {ErrorCode.RATE_LIMIT, ErrorCode.UPSTREAM_UNAVAILABLE}:
         return GatewayError(
             code,
             retryable=True,
