@@ -10,6 +10,7 @@ import sys
 import warnings
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO, cast
 
@@ -17,9 +18,9 @@ from kwork.schema.actor import Actor
 from pydantic import SecretStr, ValidationError
 
 from kwork_mcp.config import KworkConfig, contains_unsafe_text_codepoint
-from kwork_mcp.coordination import CoordinationStore
+from kwork_mcp.coordination import CoordinationStore, StoredWrite
 from kwork_mcp.errors import GatewayError, classify_upstream_error
-from kwork_mcp.models import ErrorCode
+from kwork_mcp.models import ErrorCode, WriteState
 from kwork_mcp.security import (
     SecureTokenStore,
     TokenRecord,
@@ -42,7 +43,20 @@ KWORK_EXPECTED_USER_ID и, при необходимости, KWORK_STATE_DIR. L
 Если существует legacy ~/.kwork_token с owner=current user и mode 0600, CLI
 предложит явно проверить и импортировать его. Обычный MCP server legacy-файл
 никогда не импортирует.
+
+Записи с неизвестным исходом (submission_unknown) блокируют новые commit для
+аккаунта, пока их не сверит reconcile_write. Если read-back не может прийти к
+выводу, проверьте операцию на kwork.ru и зафиксируйте результат вручную:
+
+  kwork-mcp-bootstrap pending-writes
+  kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent
 """
+
+_RESOLUTION_STATES = {
+    "succeeded": WriteState.RECONCILED_SUCCEEDED,
+    "absent": WriteState.RECONCILED_ABSENT,
+}
+_CONFIRMATIONS = {"да", "д", "yes", "y"}
 
 _BOOTSTRAP_CLOSE_TIMEOUT_SECONDS = 5.0
 _BOOTSTRAP_CLOSE_CANCEL_GRACE_SECONDS = 0.1
@@ -368,6 +382,107 @@ def _visible_prompt(
     return value.strip()
 
 
+def _write_admin_scope(config: KworkConfig) -> str:
+    if config.expected_user_id is None:
+        raise GatewayError(
+            ErrorCode.ACCOUNT_BINDING_REQUIRED,
+            diagnostic="write_admin_requires_expected_user_id",
+        )
+    return f"account-{config.expected_user_id}"
+
+
+def _write_summary(record: StoredWrite) -> dict[str, Any]:
+    payload = json.loads(record.payload_json)
+    request = payload.get("request") if isinstance(payload, dict) else None
+    return {
+        "write_id": record.write_id,
+        "action": record.action.value,
+        "state": record.state.value,
+        "prepared_at": datetime.fromtimestamp(record.prepared_at, tz=UTC).isoformat(),
+        "updated_at": datetime.fromtimestamp(record.updated_at, tz=UTC).isoformat(),
+        "request": request,
+    }
+
+
+async def _run_write_admin(
+    argv: Sequence[str],
+    *,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> int:
+    """Operator commands for writes that read-back cannot settle."""
+
+    command, *rest = argv
+    try:
+        config = _base_bootstrap_config()
+        scope = _write_admin_scope(config)
+        coordinator = CoordinationStore(config)
+        if command == "pending-writes":
+            if rest:
+                stderr.write("Ошибка: pending-writes не принимает аргументы.\n")
+                return 2
+            records = await coordinator.list_unresolved_writes(scope)
+            listing = {
+                "schema_version": "1.0",
+                "account_id": config.expected_user_id,
+                "writes": [_write_summary(record) for record in records],
+            }
+            stdout.write(json.dumps(listing, ensure_ascii=False, sort_keys=True) + "\n")
+            return 0
+
+        if len(rest) != 2 or rest[1] not in _RESOLUTION_STATES:
+            stderr.write("Использование: kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent\n")
+            return 2
+        write_id, outcome = rest
+        if not (stdin.isatty() and stderr.isatty()):
+            stderr.write("Ошибка: resolve-write требует настоящий интерактивный TTY.\n")
+            return 2
+        record = await coordinator.get_write(write_id, scope=scope)
+        if record is None:
+            raise GatewayError(ErrorCode.NOT_FOUND, diagnostic="write_id_not_found")
+        if record.state is not WriteState.SUBMISSION_UNKNOWN:
+            stderr.write(f"Запись {write_id} уже в состоянии {record.state.value}; разрешать нечего.\n")
+            return 1
+        stderr.write(json.dumps(_write_summary(record), ensure_ascii=False, indent=2) + "\n")
+        stderr.write(
+            "Убедитесь на kwork.ru, что операция "
+            + ("выполнена" if outcome == "succeeded" else "НЕ выполнена")
+            + ". Ошибочное решение может привести к дублю или потере записи.\n"
+        )
+        answer = _visible_prompt(
+            f"Зафиксировать {write_id} как {outcome}? Введите «да»: ",
+            stdin=stdin,
+            stderr=stderr,
+        )
+        if answer.casefold() not in _CONFIRMATIONS:
+            stderr.write("Отменено; запись не изменена.\n")
+            return 1
+        resolved = await coordinator.operator_resolve_write(
+            write_id=write_id,
+            scope=scope,
+            state=_RESOLUTION_STATES[outcome],
+        )
+        stdout.write(
+            json.dumps(
+                {"write_id": resolved.write_id, "state": resolved.state.value},
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            + "\n"
+        )
+        return 0
+    except (EOFError, KeyboardInterrupt):
+        stderr.write("Отменено; запись не изменена.\n")
+        return 130
+    except ValidationError:
+        stderr.write("Ошибка конфигурации: проверьте KWORK_EXPECTED_USER_ID и KWORK_STATE_DIR.\n")
+        return 2
+    except GatewayError as error:
+        stderr.write(f"Не выполнено: {error.code.value}: {error.safe_message}\n")
+        return 1
+
+
 async def run_bootstrap_cli(
     argv: Sequence[str],
     *,
@@ -386,6 +501,8 @@ async def run_bootstrap_cli(
     if list(argv) == ["--version"]:
         stdout.write(f"{__version__}\n")
         return 0
+    if argv and argv[0] in {"pending-writes", "resolve-write"}:
+        return await _run_write_admin(argv, stdin=stdin, stdout=stdout, stderr=stderr)
     if argv:
         stderr.write("Ошибка: kwork-mcp-bootstrap не принимает параметры авторизации через argv.\n")
         return 2

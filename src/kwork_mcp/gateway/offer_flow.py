@@ -19,6 +19,8 @@ from kwork_mcp.gateway.lookups import ReadBackLookups
 from kwork_mcp.gateway.parsing import _optional_int, _positive_int
 from kwork_mcp.models import ErrorCode
 
+_WEB_SESSION_ERRORS = frozenset({ErrorCode.CSRF, ErrorCode.AUTH_EXPIRED, ErrorCode.AUTH_REQUIRED})
+
 
 class OfferSubmission(ReadBackLookups):
     @staticmethod
@@ -90,13 +92,33 @@ class OfferSubmission(ReadBackLookups):
         *,
         before_remote_attempt: Callable[[], Awaitable[None]] | None = None,
     ) -> dict[str, JsonValue]:
+        try:
+            return await self._submit_offer_steps(
+                request,
+                before_remote_attempt=before_remote_attempt,
+            )
+        except GatewayError as error:
+            if error.code in _WEB_SESSION_ERRORS:
+                # The kwork.ru cookie session can expire while the API token
+                # stays valid; force a fresh web login on the next attempt.
+                self.session.invalidate_web_login()
+            raise
+
+    async def _submit_offer_steps(
+        self,
+        request: dict[str, Any],
+        *,
+        before_remote_attempt: Callable[[], Awaitable[None]] | None,
+    ) -> dict[str, JsonValue]:
         client = await self.session.ensure_web_client()
         project_id = int(request["project_id"])
         referer = urljoin(client.web.base_url, f"new_offer?project={project_id}")
+        # Opening the form, FAQ init, the draft and the template check cannot
+        # create an offer, so a failure there leaves the write committable.
+        # Only the final create call crosses the durable no-retry boundary.
         page = await self.session.call_write_step(
             "write-offer-page",
             lambda current: current.web.open_new_offer_page(project_id=project_id),
-            before_remote_attempt=before_remote_attempt,
         )
         status = _optional_int(page.get("status"))
         if status not in {200, 302}:
@@ -111,7 +133,6 @@ class OfferSubmission(ReadBackLookups):
         faq_result = await self.session.call_write_step(
             "write-offer-faq",
             lambda current: current.web.quick_faq_init(referer=referer, page="new_offer"),
-            before_remote_attempt=before_remote_attempt,
         )
         self._require_web_prerequisite(faq_result, "quick-faq/init")
         draft_result = await self.session.call_write_step(
@@ -123,7 +144,6 @@ class OfferSubmission(ReadBackLookups):
                 message="",
                 referer=referer,
             ),
-            before_remote_attempt=before_remote_attempt,
         )
         self._require_web_prerequisite(draft_result, "wants/create_offer_draft")
         template_result = await self.session.call_write_step(
@@ -133,7 +153,6 @@ class OfferSubmission(ReadBackLookups):
                 description=request["description"],
                 referer=referer,
             ),
-            before_remote_attempt=before_remote_attempt,
         )
         self._require_web_prerequisite(template_result, "projects/check_is_template")
         try:
@@ -186,7 +205,14 @@ class OfferSubmission(ReadBackLookups):
             raise AmbiguousWriteError("offer_final_invalid_json")
         offer_id = self._extract_offer_id(payload)
         if offer_id is None:
-            matches = await self._matching_offers(request)
+            # Kwork confirmed the offer exists; any failure to find its ID is
+            # an unknown outcome, never a known failure that is safe to retry.
+            try:
+                matches = await self._matching_offers(request)
+            except AmbiguousWriteError:
+                raise
+            except GatewayError as error:
+                raise AmbiguousWriteError("offer_created_readback_failed") from error
             if len(matches) == 1:
                 offer_id = matches[0].offer_id
             else:

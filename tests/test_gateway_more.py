@@ -1050,6 +1050,10 @@ class OfferWebSession:
 
     def __init__(self, client: FakeOfferClient) -> None:
         self.client = client
+        self.web_invalidations = 0
+
+    def invalidate_web_login(self) -> None:
+        self.web_invalidations += 1
 
     async def ensure_web_client(self) -> FakeOfferClient:
         return self.client
@@ -1159,9 +1163,12 @@ async def test_real_submit_offer_known_and_ambiguous_failures(
         CoordinationStore(config),
         OfferWebSession(client),  # type: ignore[arg-type]
     )
+    session = OfferWebSession(client)
+    gateway.session = session  # type: ignore[assignment]
     with pytest.raises(GatewayError) as caught:
         await gateway._execute_submit_offer(submit_payload())
     assert caught.value.code is expected_code
+    assert session.web_invalidations == (1 if expected_code is ErrorCode.CSRF else 0)
 
 
 @pytest.mark.asyncio
@@ -1621,32 +1628,18 @@ async def test_reconciliation_negative_and_ambiguous_branches(
         )
     assert multiple_messages.value.code is ErrorCode.AMBIGUOUS_WRITE
 
+    # A vanished message, dialog or order proves nothing about the write.
     gateway.messages = []
-    succeeded, _ = await gateway._read_back(
-        WriteAction.EDIT_MESSAGE,
-        {"username": "recipient", "message_id": 1, "text": "new"},
-        {},
-        stored_record(WriteAction.EDIT_MESSAGE),
-    )
-    assert succeeded is False
     gateway.dialogs = []
-    assert (
-        await gateway._read_back(
-            WriteAction.MARK_DIALOG_READ,
-            {"user_id": 14},
-            {},
-            stored_record(WriteAction.MARK_DIALOG_READ),
-        )
-    )[0] is False
     gateway.orders = []
-    assert (
-        await gateway._read_back(
-            WriteAction.SUBMIT_ORDER_APPROVAL,
-            {"order_id": 15},
-            {},
-            stored_record(WriteAction.SUBMIT_ORDER_APPROVAL),
-        )
-    )[0] is False
+    for action, request in (
+        (WriteAction.EDIT_MESSAGE, {"username": "recipient", "message_id": 1, "text": "new"}),
+        (WriteAction.MARK_DIALOG_READ, {"user_id": 14}),
+        (WriteAction.SUBMIT_ORDER_APPROVAL, {"order_id": 15}),
+    ):
+        with pytest.raises(GatewayError) as missing:
+            await gateway._read_back(action, request, {}, stored_record(action))
+        assert missing.value.code is ErrorCode.AMBIGUOUS_WRITE
     gateway.kworks = [KworkRecord(kwork_id=16, status_group_name="На паузе", raw={"id": 16})]
     assert (
         await gateway._read_back(

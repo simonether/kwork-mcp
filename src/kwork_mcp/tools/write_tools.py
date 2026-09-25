@@ -180,7 +180,9 @@ def register(mcp: FastMCP) -> None:
         Возвращает reconciled_succeeded при найденном точном side effect.
         Reconciled_absent требует нескольких полных отрицательных наблюдений через
         visibility interval; до этого остаётся submission_unknown. Remote write не
-        выполняется.
+        выполняется. Неизвестные состояния (модерация, исчезнувший объект, чужой
+        текст) не считаются доказательством; если сверка не сходится, оператор
+        фиксирует исход через kwork-mcp-bootstrap resolve-write.
         """
         correlation = correlation_id()
         try:
