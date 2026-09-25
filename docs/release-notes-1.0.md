@@ -1,11 +1,62 @@
-# Release notes — 1.0.0rc1
+# Release notes — 1.0.0
 
 ## Почему major
 
-1.0.0rc1 — release candidate версии 1.0.0, заменяющей endpoint-wrapper 0.2.x
-на безопасный MCP gateway. Это breaking
-изменение tool API и configuration, поэтому SemVer minor/patch был бы вводящим в
-заблуждение.
+1.0.0 — stable release, заменяющий endpoint-wrapper 0.2.x на безопасный MCP
+gateway. Это breaking изменение tool API и configuration, поэтому SemVer
+minor/patch был бы вводящим в заблуждение. Ему предшествовал release candidate
+1.0.0rc1; изменения с тех пор перечислены в следующем разделе.
+
+## Изменения после 1.0.0rc1
+
+- Gateway стал package `kwork_mcp.gateway` со слоями `parsing → base → reads →
+  lookups → offer_flow → actions → writes`; у каждого write action один handler
+  (`preflight` / `execute` / `read_back` / `check_fresh_resolution`). Само
+  разделение поведение не меняло.
+- Read tools сверены с live-ответами Kwork: `list_my_kworks` пропускает
+  aggregate status-группу с id `0` и обходит вложенные status-группы;
+  `get_exchange_info` принимает голый exchangeInfo object без флага `success`;
+  `list_notifications` на `{"success": true}` без `response` возвращает
+  `known_empty`, а не `contract_drift`.
+- Временные ошибки Kwork («повторите попытку позже», «временно недоступен», «try
+  again later» и т.п.) классифицируются как retryable `upstream_unavailable`.
+  `duplicate` и `permission` требуют явной формулировки, поэтому неудачный оффер
+  больше не выдаётся за «уже отправлен».
+- `submit_offer`: durable no-retry boundary пересекает только финальный create;
+  сбой открытия формы, FAQ init, draft или template check оставляет запись
+  `prepared`, а CSRF/auth failure сбрасывает web login. Оффер, создание которого
+  Kwork подтвердил, но ID которого не найден, — `submission_unknown`, а не
+  `failed_known`.
+- Read-back не считает отсутствием исчезнувшие message, dialog, order или kwork
+  и постороннюю kwork status-группу. `edit_message` сохраняет
+  `message_text_sha256_at_prepare`, `set_kwork_state` —
+  `kwork_status_group_id_at_prepare`, чтобы неизменившийся объект доказывал, что
+  write не состоялся.
+- Commit-time preflight, который не может прийти к выводу (неоднозначный read,
+  contract drift, transient failure), всегда возвращает запись в `prepared` с
+  ошибкой, а не в `failed_known`; неоднозначный read отдаётся как retryable
+  `upstream_unavailable`.
+  Окончательны только `not_found`, `closed_project`, `duplicate`,
+  `insufficient_connects`, `validation`, `permission`.
+- Account write barrier называет блокирующую запись в новом optional поле
+  `ErrorInfo.related_write_id`; `account_status` возвращает
+  `unresolved_write_ids`. Новые operator-команды `kwork-mcp-bootstrap
+  pending-writes` и `kwork-mcp-bootstrap resolve-write <write_id>
+  succeeded|absent` (TTY и явное «да») фиксируют проверенный вручную исход; их
+  нужно запускать с тем же `KWORK_*` policy env, что и server.
+- Конфигурация проверяется в `main()` до старта server: некорректные `KWORK_*`
+  перечисляются по имени, exit code `2`, без traceback. Bootstrap называет
+  введённое значение, не прошедшее проверку. Server запускается с
+  `show_banner=False`, без непроксированного PyPI update check и cache вне
+  `KWORK_STATE_DIR`.
+- Proxy ограничен `http`, `socks4`, `socks5` с явным port; `https` и `socks5h`
+  отклоняются, scheme приводится к нижнему регистру. Отдельные proxy user/host
+  fragments короче 8 символов больше не редактируются сами по себе, а JSON keys
+  теряют только secrets от 8 символов и URL userinfo; password и полные формы
+  proxy URL редактируются всегда.
+- `cryptography` 50.0.1 и `pip` 26.2.1 в `uv.lock` по security advisories.
+  `SHA256SUMS` в release содержит голые имена файлов, поэтому
+  `sha256sum --check SHA256SUMS` работает в каталоге скачанных assets.
 
 ## Основные изменения
 
@@ -28,9 +79,9 @@
   отдельный код `credential_update_unknown`.
 - Proxy redaction ищет все exact runtime secrets в исходном тексте, объединяет
   overlapping/touching интервалы, затем разбирает authority по последнему `@`;
-  raw/decoded, yarl-canonical URL/authority/host и независимо case-normalized
-  percent-escape варианты userinfo/fragments не попадают в logs, sanitized raw
-  или MCP envelope.
+  raw/decoded, yarl-canonical и case-normalized percent-escape формы proxy
+  URL/authority/userinfo и password не попадают в logs, sanitized raw или MCP
+  envelope. Отдельные user/host fragments редактируются от 8 символов.
 - Child self-cancel при закрытии bootstrap client до store commit сохраняет
   прежний record и первичную ошибку; caller cancellation пробрасывается только
   после cleanup. После успешного либо потенциально committed replace оба случая
@@ -72,7 +123,7 @@
   собственные offers всегда содержат `project_id`.
 - `kwork==0.2.0` закреплён, реальные signatures/routes проверяются при старте и в
   contract tests.
-- FastMCP 3.4.5 и MCP SDK 1.28.1 закреплены; application version 1.0.0rc1 доступна в
+- FastMCP 3.4.5 и MCP SDK 1.28.1 закреплены; application version 1.0.0 доступна в
   handshake.
 - Строгая MCP input validation вынесена в sanitizing middleware, чтобы invalid
   offer/message payload не отражался целиком в protocol error.
@@ -86,9 +137,9 @@
   mypy, coverage, package metadata, pinned MCP Registry schema, wheel, dependency
   audit и secrets.
 - Release publication выполняется только после явного GitHub
-  `release.published` и через protected environments. Для GitHub prerelease
-  workflow публикует Python package в PyPI, но намеренно пропускает MCP Registry
-  до stable `1.0.0`.
+  `release.published` и через protected environments: package публикуется в PyPI,
+  а stable release (`1.0.0`, не prerelease) — также `server.json` в MCP Registry.
+  Distributions и `SHA256SUMS` прикладываются к GitHub release.
 
 ## Исправленные upstream-расхождения
 
@@ -116,14 +167,16 @@
 Перед обновлением прочитайте [migration guide](migration-1.0.md). Особое внимание:
 удалите secrets из MCP host config, выполните bootstrap (с validated legacy import
 либо fresh hidden login), оставьте writes disabled до `account_status`; все прямые
-write-tools заменены двухфазным protocol.
+write-tools заменены двухфазным protocol. При переходе с 1.0.0rc1 достаточно
+раздела «Обновление с 1.0.0rc1» того же guide.
 
 ## Известные ограничения
 
 - Kwork/pykwork не являются стабильным официальным публичным API; upstream drift
   может потребовать новый gateway release.
 - Reconciliation зависит от доступного read-back. Если side effect нельзя
-  идентифицировать однозначно, требуется ручная проверка Kwork.
+  идентифицировать однозначно, требуется ручная проверка Kwork и фиксация исхода
+  через `kwork-mcp-bootstrap resolve-write`.
 - State защищён POSIX permissions/locks, но не зашифрован приложением; runtime 1.0
   поддерживает Linux/macOS, не Windows.
 - High watermark — checkpoint paginated snapshot, не гарантия CDC/delta delivery.

@@ -11,6 +11,8 @@ MCP transport — локальный stdio. Сервер не открывает
 удалённую MCP-аутентификацию. Некоторые MCP hosts сериализуют configured env в
 собственный argv; дочерний server не может стереть утечку из parent process.
 Поэтому production entrypoint вообще отклоняет secret-bearing auth/proxy env.
+Server запускается с `show_banner=False`: FastMCP не делает непроксированный PyPI
+update check и не пишет cache вне `KWORK_STATE_DIR`.
 Безопасность запуска Codex, доступа к state directory и шифрования диска остаётся
 ответственностью оператора.
 
@@ -40,12 +42,19 @@ non-sticky `0777/child-0700` намеренно неприемлем.
 - `.env` из cwd никогда не загружается.
 - Login/password/phone/proxy вводятся только separate `kwork-mcp-bootstrap` через
   настоящий TTY/getpass; server не принимает их ни через argv, ни через env.
-- Runtime-loaded token, full proxy URL и raw/decoded/yarl-canonical proxy URL,
-  authority/host, userinfo, username/password fragments динамически
-  регистрируются для redaction в логах и external MCP payload. Percent escapes
-  canonicalized по hex case при сопоставлении. Все exact совпадения ищутся в
-  исходной строке, после чего overlapping/touching интервалы объединяются до
-  общего authority parser, который отделяет userinfo по последнему `@`.
+- Proxy URL допускает только `http`, `socks4` и `socks5` с явным port (то, что
+  поддерживает connector); `https` и `socks5h` отклоняются, scheme приводится к
+  нижнему регистру.
+- Runtime-loaded token, proxy password и raw/decoded/yarl-canonical формы full
+  proxy URL, authority и userinfo всегда регистрируются для redaction в логах и
+  external MCP payload. Отдельные proxy username/host fragments редактируются
+  только от 8 символов (`MIN_DISTINCTIVE_SECRET_LENGTH`): короткие вроде `user`
+  совпадали бы с обычными данными. В JSON keys удаляются только secrets от 8
+  символов и URL userinfo, поэтому `user_id` не становится `<redacted>_id`.
+  Percent escapes canonicalized по hex case при сопоставлении. Все exact
+  совпадения ищутся в исходной строке, после чего overlapping/touching интервалы
+  объединяются до общего authority parser, который отделяет userinfo по
+  последнему `@`.
 - Ошибки MCP input validation не отражают переданные значения: строгая проверка
   advertised JSON Schema выполняется sanitizing middleware до FastMCP function
   validation.
@@ -100,37 +109,64 @@ Confirmation token не хранится открытым текстом: он �
 пока запись остаётся `prepared`.
 После durable marker timeout, proxy disconnect, 5xx, пустой/non-JSON submit
 response, отсутствие подтверждённого offer ID или потеря lease дают
-`submission_unknown`. Ошибка admission/rate/auth до marker освобождает claim и
-сохраняет возможность commit с тем же confirmation.
+`submission_unknown`; оффер, создание которого Kwork подтвердил, но ID которого
+не удалось найти, тоже `submission_unknown`, а не `failed_known`. Ошибка
+admission/rate/auth до marker освобождает claim и сохраняет возможность commit с
+тем же confirmation. Для `submit_offer` marker ставится только перед финальным
+create: открытие формы, FAQ init, draft и template check оффер не создают, и их
+сбой оставляет запись `prepared`; CSRF/auth failure сбрасывает web login.
+
+Commit-time preflight окончателен только для `not_found`, `closed_project`,
+`duplicate`, `insufficient_connects`, `validation` и `permission` (`failed_known`).
+Неоднозначный read, contract drift или transient failure в preflight возвращают
+запись в `prepared` без reconciliation; неоднозначный read отдаётся как retryable
+`upstream_unavailable`.
 
 Claim и remote boundary разделены durable marker. Cancellation во время identity
 check, read-only preflight или ожидания exclusive client возвращает claim в
 `prepared`; cancellation после marker немедленно фиксирует
-`submission_unknown`. Marker записывается shielded непосредственно перед первой
-side-effect/write-flow операцией, после auth/rate admission. Финальная запись
-success/failure также завершается shielded, после чего cancellation обязательно
-пробрасывается вызывающей стороне. Если process
+`submission_unknown`. Marker записывается shielded непосредственно перед remote
+write-вызовом (для `submit_offer` — перед финальным create), после auth/rate
+admission. Финальная запись success/failure также завершается shielded, после чего
+cancellation обязательно пробрасывается вызывающей стороне. Живой writer держит
+account `flock`, поэтому его истёкший lease никто не восстанавливает; если process
 погиб, истёкший lease без marker восстанавливается в `prepared`/`expired`, а с
 marker — только в `submission_unknown`.
 
 `submission_unknown` означает: **не повторять commit и не создавать новый
 idempotency key для того же действия**. Используйте `reconcile_write`; если
 read-back недостаточен для однозначного ответа, оператор должен проверить Kwork
-вручную. До разрешения такого состояния durable account barrier блокирует все
-новые writes. Терминальное отсутствие требует нескольких полных отрицательных
-read-back наблюдений через настраиваемый interval.
+вручную и зафиксировать исход через `kwork-mcp-bootstrap resolve-write <write_id>
+succeeded|absent` (только TTY и явное «да»; тот же `KWORK_*` policy env, что у
+server). До разрешения такого состояния durable account barrier блокирует все
+новые writes: ошибка `ambiguous_write` несёт `related_write_id`, а
+`account_status.unresolved_write_ids` перечисляет блокирующие записи.
+Терминальное отсутствие требует нескольких полных отрицательных read-back
+наблюдений через настраиваемый interval.
 Неизвестные или новые upstream states никогда не считаются отрицательным
 доказательством: для order approval закреплены `1` («в работе») и `4` («на
 проверке»); arbitration/cancelled/completed/payment-required и любой новый status
-оставляют запись неоднозначной.
+оставляют запись неоднозначной. Исчезнувшие message, dialog, order или kwork и
+посторонняя kwork status-группа (модерация и т.п.) тоже не доказывают отсутствие.
+Отрицательное наблюдение для `edit_message` и `set_kwork_state` опирается на
+prepare-time evidence (`message_text_sha256_at_prepare`,
+`kwork_status_group_id_at_prepare`): объект должен остаться в том же состоянии,
+что и при prepare.
 Malformed/falsy collections и неполная либо дробная pagination на read-back
 маршрутах завершаются `contract_drift` и не засчитываются как отсутствие.
 
 ## Error taxonomy
 
 Все ошибки имеют безопасное сообщение, correlation ID и признаки `retryable`,
-`safe_to_retry`, `reconciliation_required`. `safe_to_retry` относится к текущему
-tool-вызову; remote write после начала отправки безопасным retry не считается.
+`safe_to_retry`, `reconciliation_required`, опционально `retry_after_seconds` и
+`related_write_id`. `safe_to_retry` относится к текущему tool-вызову; remote write
+после начала отправки безопасным retry не считается.
+
+Текст ошибок Kwork используется только для классификации. Временные формулировки
+(«повторите попытку позже», «временно недоступен», «try again later» и т.п.) дают
+retryable `upstream_unavailable`; `duplicate` и `permission` требуют явной
+формулировки («уже отправлено», «already exists», «нет доступа», «access denied»
+и т.п.), поэтому «повтор…» или «недоступен» их больше не вызывают.
 
 | Код | Значение / действие |
 |---|---|
@@ -141,13 +177,13 @@ tool-вызову; remote write после начала отправки без�
 | `captcha` | Пройти captcha вне MCP и обновить авторизацию |
 | `permission`, `ip_blocked`, `csrf` | Проверить права, IP/proxy или web session |
 | `rate_limit`, `circuit_open` | Соблюдать `retry_after_seconds`; retry только если `safe_to_retry` |
-| `proxy`, `timeout`, `upstream_unavailable` | Transport failure; для started write требуется reconcile |
+| `proxy`, `timeout`, `upstream_unavailable` | Transport/временный сбой Kwork; для started write требуется reconcile |
 | `closed_project` | Проект больше не принимает оффер |
 | `duplicate` | Side effect уже существует/операция повторна |
 | `insufficient_connects` | Не отправлять оффер до пополнения connects |
 | `contract_drift` | Закреплённый API/schema нарушен; обновлять gateway осознанно |
 | `credential_update_unknown` | Replace мог состояться; не считать старый record сохранённым, проверить bootstrap/store |
-| `ambiguous_write` | Не retry; выполнить reconciliation/read-back |
+| `ambiguous_write` | Не retry; выполнить reconciliation/read-back записи из `related_write_id`, если он задан |
 | `idempotency_conflict` | Key уже связан с другим payload |
 | `preparation_expired`, `invalid_confirmation` | Подготовить заново после проверки intent |
 | `write_in_progress` | Другой process владеет lease; читать status |
@@ -179,14 +215,21 @@ Runtime закреплён на `kwork==0.2.0`. При старте сверяю
 - paginated orders — `worker_orders(filter="all", page=...)`, а не
   `get_worker_orders(page=...)`;
 - approval не принимает несуществующий `comment`;
-- offer submission не считается успешной без подтверждённого ID/read-back.
+- offer submission не считается успешной без подтверждённого ID/read-back;
+- `kworksStatusList`: aggregate status-группа с id `0` пропускается, а группы,
+  вложенные в `kworks` array другой группы, обходятся отдельно;
+- `exchangeInfo` может ответить голым объектом без `success`: он принимается
+  только при HTTP 200 и отсутствии `success`/`error`/`error_code`/`errors`;
+- notifications: `{"success": true}` без `response` — пустой результат
+  (`known_empty`), а не `contract_drift`.
 
 Web-flow дополнительно разрешает только HTTPS host `kwork.ru` или его настоящие
 поддомены. Redirects обрабатываются вручную: post-login запрос не переходит на
 другой origin, а любой redirect после mutating POST отвергается, поскольку первый
-запрос уже мог сработать. Каждый FAQ/draft/template prerequisite обязан вернуть
-2xx до финального create; structured web errors сохраняют HTTP status/payload для
-типизации captcha/IP/CSRF/permission без публикации внешнего текста.
+запрос уже мог сработать. Каждый FAQ/draft/template prerequisite выполняется до
+durable marker и обязан вернуть 2xx до финального create; structured web errors
+сохраняют HTTP status/payload для типизации captcha/IP/CSRF/permission без
+публикации внешнего текста.
 
 Любой drift должен завершаться `contract_drift`, а не молчаливой потерей поля или
 ложным успехом.

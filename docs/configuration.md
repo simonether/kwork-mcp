@@ -21,7 +21,9 @@ KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap
 ```
 
 Login, password, optional last-four phone digits и optional proxy URL считываются
-через `getpass`, никогда не принимаются в argv и не выводятся. Bootstrap выполняет
+через `getpass`, никогда не принимаются в argv и не выводятся. Proxy URL допускает
+только `http`, `socks4` и `socks5` с явным port; `https`, `socks5h`, path, query и
+fragment отклоняются, scheme приводится к нижнему регистру. Bootstrap выполняет
 только authentication + `get_me`, проверяет exact numeric ID и затем сохраняет
 record. Normal `kwork-mcp` требует `EXPECTED_USER_ID + PERSIST_TOKEN=true` и
 проверяет сохранённый token через `get_me`; если record отсутствует, возвращается
@@ -31,6 +33,12 @@ record. Normal `kwork-mcp` требует `EXPECTED_USER_ID + PERSIST_TOKEN=true
 Normal entrypoint намеренно отклоняет непустые `KWORK_LOGIN`, `KWORK_PASSWORD`,
 `KWORK_TOKEN`, `KWORK_PHONE_LAST`, `KWORK_PROXY_URL`. Эти имена нельзя добавлять в
 Codex/Claude MCP configuration, даже если host помечает их как secrets.
+
+Конфигурация проверяется в `main()` до запуска server: некорректные значения
+перечисляются по именам `KWORK_*`, а конфликт настроек (например, отсутствие
+`EXPECTED_USER_ID + PERSIST_TOKEN=true` или `RETRY_BACKOFF_MAX` меньше base)
+выводится текстом нарушенного правила, без значений и без traceback; exit code `2`. Server запускается с `show_banner=False`, поэтому FastMCP не
+выполняет PyPI update check и не пишет cache вне `KWORK_STATE_DIR`.
 
 ## Transport и state
 
@@ -56,7 +64,9 @@ special bits отклоняются. Trusted non-final aliases раскрыва�
 `O_NOFOLLOW`, поэтому alias target/race не может скрыть writable ancestor.
 `coordination.sqlite3`, credential/lock files должны иметь `0600`. Account record
 содержит verified token и optional proxy URL.
-Legacy record без proxy означает direct connection. Чтобы добавить, заменить или
+Legacy record без proxy означает direct connection. Record с `https` proxy, без
+явного port или со scheme не в нижнем регистре (мог быть сохранён 1.0.0rc1) при
+загрузке отклоняется как `validation`. Чтобы добавить, заменить или
 удалить proxy, остановите процессы account/state, повторите bootstrap и
 перезапустите MCP; уже открытый client record не перечитывает. Не размещайте общий
 state на NFS или другом filesystem без надёжных POSIX locks/SQLite semantics.
@@ -91,15 +101,20 @@ sleep сверх `RETRY_BACKOFF_MAX`; shared circuit никогда не отк�
 | Переменная | Default | Ограничения/смысл |
 |---|---:|---|
 | `KWORK_PREPARATION_TTL_SECONDS` | `600` | 30–3600 s |
-| `KWORK_WRITE_LEASE_SECONDS` | `120` | One-writer lease, 10–900 s |
+| `KWORK_WRITE_LEASE_SECONDS` | `120` | Crash-recovery lease writer-а, 10–900 s |
 | `KWORK_RECONCILIATION_MIN_AGE_SECONDS` | `15` | Первое read-back не раньше этого возраста, 1–300 s |
 | `KWORK_RECONCILIATION_ABSENCE_CONFIRMATIONS` | `2` | Полных наблюдений отсутствия, 2–5 |
 | `KWORK_RECONCILIATION_ABSENCE_INTERVAL_SECONDS` | `15` | Интервал между отрицательными наблюдениями, 1–300 s |
 | `KWORK_STATE_RETENTION_DAYS` | `30` | Retention терминальных ledger-записей, 1–3650 дней |
 
-Слишком короткий lease может превратить медленный, но успешный write в
-`submission_unknown`; это безопаснее дублирования, но требует reconcile. Увеличивайте
-его только с учётом максимального upstream timeout. `reconciled_absent` возникает
+Lease — только crash-recovery deadline. Пока живой writer держит account-scoped
+`flock`, никто не может восстановить его запись, а сам writer срок lease не
+проверяет, поэтому медленный write завершается обычным outcome даже после его
+истечения. Lease используется, когда writer-процесс погиб и ОС освободила `flock`:
+до истечения lease другие commits получают `write_in_progress`, после него
+следующий commit, `get_write_status` или `reconcile_write` восстанавливает запись
+(без remote marker — `prepared`/`expired`, с marker — `submission_unknown`).
+Длинный lease лишь задерживает это восстановление. `reconciled_absent` возникает
 лишь после настроенного числа полных read-back наблюдений, разделённых visibility
 interval; до этого запись остаётся `submission_unknown` и блокирует новые writes
 для данного аккаунта.
@@ -108,6 +123,23 @@ Cancellation до durable remote marker освобождает claim в `prepare
 немедленно сохраняется `submission_unknown`. При crash/stale lease действует то же
 разделение. Exact replay `prepare_write` с тем же idempotency key/request возвращает
 тот же HMAC-derived confirmation token, пока запись остаётся `prepared`.
+
+Пока у аккаунта есть запись в `submission_unknown`, любой другой commit
+отклоняется `ambiguous_write` с `error.related_write_id`; `account_status`
+возвращает все такие записи в `unresolved_write_ids`. Если `reconcile_write` не
+может прийти к выводу, оператор проверяет операцию на kwork.ru и фиксирует исход:
+
+```bash
+KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap pending-writes
+KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent
+```
+
+`pending-writes` печатает JSON в stdout. `resolve-write` работает только в
+интерактивном TTY, показывает запись и требует явного ввода «да»; разрешить можно
+только `submission_unknown`. Команды открывают тот же state DB, поэтому запускайте
+их с теми же `KWORK_EXPECTED_USER_ID`, `KWORK_STATE_DIR` и policy-переменными
+`KWORK_*`, что и server: иначе fingerprint общей policy (см. ниже) не совпадёт и
+команда завершится `contract_drift`.
 
 При первом открытии state DB gateway закрепляет fingerprint общей policy:
 `RPS_LIMIT`, `BURST_LIMIT`, route limits, `TIMEOUT`, circuit settings и все
@@ -133,10 +165,12 @@ secret env полностью.
 - один state directory для разных OS users.
 
 Bootstrap prompts идут в stderr, success — один allowlisted JSON object в stdout.
-Логи MCP идут только в stderr. Runtime token, full proxy URL и proxy userinfo
-динамически добавляются в redaction set для логов и внешних payload. Credential
-record защищён mode `0600`, но не application-level encryption: используйте
-шифрование диска, private backups и отдельную OS account.
+Логи MCP идут только в stderr. Runtime token, proxy password, full proxy
+URL/authority и userinfo динамически добавляются в redaction set для логов и
+внешних payload; отдельные proxy user/host fragments — только от 8 символов
+(`MIN_DISTINCTIVE_SECRET_LENGTH`), чтобы короткое `user` не портило обычные данные.
+Credential record защищён mode `0600`, но не application-level encryption:
+используйте шифрование диска, private backups и отдельную OS account.
 
 Если filesystem error произошёл после atomic `os.replace`, но до подтверждённого
 directory `fsync`, результат возвращается как `credential_update_unknown`: новый

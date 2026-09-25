@@ -566,7 +566,10 @@ class WriteProtocol(OfferSubmission):
                 settled = await settle_failure_before_remote_boundary()
                 if settled.state is not WriteState.PREPARED:
                     return self._write_status(settled, correlation_id=correlation_id)
-                raise
+                # Nothing reached Kwork, so nothing is ambiguous: report the
+                # underlying failure (e.g. a local throttle) as retryable.
+                cause = error.__cause__
+                raise (cause if isinstance(cause, GatewayError) else _preflight_failure(error)) from error
             finished = await self._await_durable_ledger(
                 self._finish_remote_outcome(
                     write_id=write_id,
