@@ -382,6 +382,19 @@ def _visible_prompt(
     return value.strip()
 
 
+_PROMPTED_FIELD_LABELS = {
+    "proxy_url": "Proxy URL",
+    "phone_last": "последние 4 цифры телефона",
+    "login": "Kwork login",
+    "password": "Kwork password",
+    "token": "legacy token",
+}
+
+
+def _field_label(field: str) -> str:
+    return _PROMPTED_FIELD_LABELS.get(field, f"KWORK_{field.upper()}")
+
+
 def _write_admin_scope(config: KworkConfig) -> str:
     if config.expected_user_id is None:
         raise GatewayError(
@@ -621,11 +634,15 @@ async def run_bootstrap_cli(
     except (EOFError, KeyboardInterrupt, getpass.GetPassWarning):
         stderr.write("Bootstrap отменён без изменения credential store.\n")
         return 130
-    except ValidationError:
-        stderr.write(
-            "Ошибка безопасной конфигурации bootstrap. Проверьте KWORK_EXPECTED_USER_ID, "
-            "KWORK_STATE_DIR и KWORK_PERSIST_TOKEN.\n"
-        )
+    except ValidationError as exc:
+        invalid = sorted({_field_label(str(error["loc"][0])) for error in exc.errors() if error.get("loc")})
+        if invalid:
+            stderr.write("Ошибка конфигурации bootstrap: некорректное значение — " + ", ".join(invalid) + ".\n")
+        else:
+            stderr.write(
+                "Ошибка конфигурации bootstrap. Проверьте KWORK_EXPECTED_USER_ID, "
+                "KWORK_STATE_DIR и KWORK_PERSIST_TOKEN.\n"
+            )
         return 2
     except GatewayError as error:
         stderr.write(f"Bootstrap не выполнен: {error.code.value}: {error.safe_message}\n")

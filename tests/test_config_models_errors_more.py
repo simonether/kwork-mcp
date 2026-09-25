@@ -101,18 +101,20 @@ def test_configuration_normalizes_optional_secrets_and_scopes(tmp_path: Path) ->
         login="User@Example.Test",
         password="password",
         phone_last="1234",
-        proxy_url="HTTPS://alice:secret@proxy.example:443",
+        proxy_url="HTTP://alice:secret@proxy.example:443",
         state_dir=tmp_path,
     )
     assert login.phone_last_value == "1234"
-    assert login.proxy_value == "HTTPS://alice:secret@proxy.example:443"
+    assert login.proxy_value == "http://alice:secret@proxy.example:443"
     assert {
         "User@Example.Test",
         "password",
         "1234",
-        "alice",
+        "alice:secret",
         "secret",
     } <= set(login.redaction_secrets)
+    # A short proxy user name alone is not distinctive enough to redact.
+    assert "alice" not in login.redaction_secrets
     assert login.bootstrap_scope.startswith("unbound-")
     assert login.token_cache_is_bound is True
     empty_username = KworkConfig(
@@ -261,19 +263,24 @@ def test_send_message_requires_exactly_one_recipient(kwargs: dict[str, Any]) -> 
 
 def test_package_main_builds_and_runs_stdio_server(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(mode=0o700)
+    monkeypatch.setenv("KWORK_EXPECTED_USER_ID", "42")
+    monkeypatch.setenv("KWORK_STATE_DIR", str(state_dir))
     fake_server = SimpleNamespace(run=lambda **kwargs: calls.append(kwargs))
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "kwork_mcp.server.create_server",
-        lambda: fake_server,
+        lambda **_kwargs: fake_server,
     )
     monkeypatch.setattr(
         "kwork_mcp.secret_server_environment_present",
         lambda: False,
     )
     kwork_mcp.main([])
-    assert calls == [{"transport": "stdio"}]
+    assert calls == [{"transport": "stdio", "show_banner": False}]
     assert importlib.import_module("kwork_mcp.__main__").main is kwork_mcp.main
 
 

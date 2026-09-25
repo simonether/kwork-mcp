@@ -46,6 +46,11 @@ SERVER_SECRET_ENV_NAMES = frozenset(
 )
 
 
+# Shorter proxy user/host fragments collide with ordinary data ("user",
+# "admin") and are not redacted on their own; passwords always are.
+MIN_DISTINCTIVE_SECRET_LENGTH = 8
+
+
 def canonicalize_percent_escape_case(value: str) -> str:
     """Normalize only hexadecimal digits in percent escapes without resizing."""
 
@@ -66,19 +71,23 @@ def normalize_proxy_url(value: str) -> str:
     if len(normalized.encode("utf-8")) > 8192:
         raise ValueError("proxy URL is too large")
     parsed = urlsplit(normalized)
-    if parsed.scheme.lower() not in {"http", "https", "socks4", "socks5"}:
-        raise ValueError("proxy URL scheme must be http, https, socks4, or socks5")
+    scheme = parsed.scheme.lower()
+    # Exactly the schemes aiohttp_socks/python_socks can connect through.
+    if scheme not in {"http", "socks4", "socks5"}:
+        raise ValueError("proxy URL scheme must be http, socks4, or socks5")
     if not parsed.hostname:
         raise ValueError("proxy URL must contain a hostname")
     try:
         port = parsed.port
     except ValueError as exc:
         raise ValueError("proxy URL contains an invalid port") from exc
-    if port is not None and not 1 <= port <= 65_535:
+    if port is None:
+        raise ValueError("proxy URL must contain an explicit port")
+    if not 1 <= port <= 65_535:
         raise ValueError("proxy URL port must be between 1 and 65535")
     if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
         raise ValueError("proxy URL cannot contain a path, query, or fragment")
-    return normalized
+    return scheme + normalized[len(parsed.scheme) :]
 
 
 def proxy_redaction_secrets(value: str) -> tuple[str, ...]:
@@ -86,24 +95,25 @@ def proxy_redaction_secrets(value: str) -> tuple[str, ...]:
 
     parsed = urlsplit(value)
     raw_userinfo = parsed.netloc.rsplit("@", 1)[0] if "@" in parsed.netloc else ""
+    canonical = URL(value)
     base_candidates = [
         value,
         raw_userinfo,
-        parsed.username or "",
+        str(canonical),
+        canonical.raw_authority,
         parsed.password or "",
+        canonical.raw_password or "",
+        canonical.password or "",
     ]
-    canonical = URL(value)
+    identity_fragments = [
+        parsed.username or "",
+        canonical.raw_user or "",
+        canonical.user or "",
+        canonical.raw_host or "",
+        canonical.host or "",
+    ]
     base_candidates.extend(
-        [
-            str(canonical),
-            canonical.raw_authority,
-            canonical.raw_host or "",
-            canonical.host or "",
-            canonical.raw_user or "",
-            canonical.user or "",
-            canonical.raw_password or "",
-            canonical.password or "",
-        ]
+        fragment for fragment in identity_fragments if len(fragment) >= MIN_DISTINCTIVE_SECRET_LENGTH
     )
     candidates: list[str] = []
     for candidate in base_candidates:
