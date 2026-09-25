@@ -44,10 +44,12 @@ def test_proxy_url_and_long_credentials_are_still_redacted() -> None:
     assert clean["token"] == "<redacted>"
 
 
-def test_distinctive_secrets_are_still_removed_from_keys() -> None:
-    clean = sanitize_external({"S3cretPassw0rd": "value", "user": 1}, secrets=("S3cretPassw0rd", "user"))
+def test_registered_secrets_including_short_passwords_are_removed_from_keys() -> None:
+    secrets = proxy_redaction_secrets("http://user:pw@10.0.0.5:3128")
 
-    assert clean == {"<redacted>": "value", "user": 1}
+    clean = sanitize_external({"pw": "value", "user_id": 1}, secrets=secrets)
+
+    assert clean == {"<redacted>": "value", "user_id": 1}
 
 
 # --- proxy URLs are validated exactly as the SOCKS/HTTP connector accepts them
@@ -67,8 +69,10 @@ def test_proxy_urls_the_connector_cannot_use_are_rejected(url: str) -> None:
         normalize_proxy_url(url)
 
 
-def test_proxy_scheme_is_normalized_to_lowercase() -> None:
-    assert normalize_proxy_url("SOCKS5://proxy.example.net:1080") == "socks5://proxy.example.net:1080"
+def test_proxy_url_is_kept_verbatim_so_saved_records_stay_valid() -> None:
+    # Stored account records must survive re-validation unchanged; the
+    # connector itself lowercases the scheme.
+    assert normalize_proxy_url("SOCKS5://proxy.example.net:1080") == "SOCKS5://proxy.example.net:1080"
 
 
 # --- startup

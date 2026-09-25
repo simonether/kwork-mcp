@@ -466,7 +466,7 @@ class WriteProtocol(OfferSubmission):
             )
             raise
         except _InconclusiveCommitPreflightError as inconclusive:
-            await self._await_durable_ledger(
+            released = await self._await_durable_ledger(
                 self.coordinator.release_write_claim(
                     write_id=write_id,
                     scope=scope,
@@ -474,6 +474,8 @@ class WriteProtocol(OfferSubmission):
                     note="inconclusive_commit_preflight",
                 )
             )
+            if released.state is not WriteState.PREPARED:
+                return self._write_status(released, correlation_id=correlation_id)
             raise inconclusive.error from inconclusive.__cause__
         except GatewayError as error:
             if error.retryable or error.code in {

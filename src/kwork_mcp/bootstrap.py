@@ -395,6 +395,14 @@ def _field_label(field: str) -> str:
     return _PROMPTED_FIELD_LABELS.get(field, f"KWORK_{field.upper()}")
 
 
+def _terminal_safe(text: str) -> str:
+    """Escape controls and bidi overrides; the result stays valid JSON."""
+
+    return "".join(
+        f"\\u{ord(char):04x}" if contains_unsafe_text_codepoint(char) and char != "\n" else char for char in text
+    )
+
+
 def _write_admin_scope(config: KworkConfig) -> str:
     if config.expected_user_id is None:
         raise GatewayError(
@@ -430,6 +438,14 @@ async def _run_write_admin(
     try:
         config = _base_bootstrap_config()
         scope = _write_admin_scope(config)
+        ledger = config.state_dir / "coordination.sqlite3"
+        if not ledger.is_file():
+            # Opening would create an empty ledger and report nothing pending.
+            stderr.write(
+                f"Ledger не найден: {_terminal_safe(str(ledger))}. Запустите команду с тем же "
+                "KWORK_STATE_DIR и KWORK_* настройками, что и MCP server.\n"
+            )
+            return 1
         coordinator = CoordinationStore(config)
         if command == "pending-writes":
             if rest:
@@ -441,7 +457,7 @@ async def _run_write_admin(
                 "account_id": config.expected_user_id,
                 "writes": [_write_summary(record) for record in records],
             }
-            stdout.write(json.dumps(listing, ensure_ascii=False, sort_keys=True) + "\n")
+            stdout.write(_terminal_safe(json.dumps(listing, ensure_ascii=False, sort_keys=True)) + "\n")
             return 0
 
         if len(rest) != 2 or rest[1] not in _RESOLUTION_STATES:
@@ -457,7 +473,7 @@ async def _run_write_admin(
         if record.state is not WriteState.SUBMISSION_UNKNOWN:
             stderr.write(f"Запись {write_id} уже в состоянии {record.state.value}; разрешать нечего.\n")
             return 1
-        stderr.write(json.dumps(_write_summary(record), ensure_ascii=False, indent=2) + "\n")
+        stderr.write(_terminal_safe(json.dumps(_write_summary(record), ensure_ascii=False, indent=2)) + "\n")
         stderr.write(
             "Убедитесь на kwork.ru, что операция "
             + ("выполнена" if outcome == "succeeded" else "НЕ выполнена")

@@ -25,7 +25,6 @@ from loguru import logger
 from pydantic import BaseModel, JsonValue
 
 from kwork_mcp.config import (
-    MIN_DISTINCTIVE_SECRET_LENGTH,
     KworkConfig,
     canonicalize_percent_escape_case,
     contains_unsafe_text_codepoint,
@@ -716,15 +715,11 @@ def sanitize_external(
     if value is None or isinstance(value, int | float | bool):
         return value
     if isinstance(value, Mapping):
-        key_secrets = tuple(secret for secret in secrets if len(secret) >= MIN_DISTINCTIVE_SECRET_LENGTH)
         clean: dict[str, JsonValue] = {}
         for raw_key, item in value.items():
             raw_key_text = str(raw_key)
             sensitive_key = any(part in raw_key_text.casefold() for part in _SENSITIVE_KEY_PARTS)
-            # Keys are upstream structure: only distinctive secrets are removed
-            # from them, so a short one such as proxy user "user" cannot turn
-            # user_id into "<redacted>_id".
-            key = redact_text(raw_key_text, key_secrets)
+            key = redact_text(raw_key_text, secrets)
             if sensitive_key:
                 clean[key] = "<redacted>"
             else:
