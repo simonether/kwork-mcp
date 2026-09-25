@@ -67,6 +67,10 @@ class ErrorInfo(BaseModel):
     safe_to_retry: bool = False
     reconciliation_required: bool = False
     retry_after_seconds: float | None = None
+    related_write_id: str | None = Field(
+        default=None,
+        description="Unresolved write that blocks this operation; reconcile it first.",
+    )
     correlation_id: str
 
 
@@ -113,6 +117,10 @@ class AccountData(BaseModel):
     binding_state: Literal["bound", "unbound_reads_only"]
     writes_enabled: bool
     write_ready: bool
+    unresolved_write_ids: list[str] = Field(
+        default_factory=list,
+        description="Writes in submission_unknown; every commit waits until they are reconciled.",
+    )
     raw: dict[str, JsonValue]
 
 

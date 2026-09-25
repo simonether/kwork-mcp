@@ -77,6 +77,7 @@ class GatewayError(Exception):
     reconciliation_required: bool = False
     retry_after_seconds: float | None = None
     diagnostic: str | None = None
+    related_write_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.retry_after_seconds is not None:
@@ -98,6 +99,7 @@ class GatewayError(Exception):
             safe_to_retry=self.safe_to_retry,
             reconciliation_required=self.reconciliation_required,
             retry_after_seconds=self.retry_after_seconds,
+            related_write_id=self.related_write_id,
             correlation_id=correlation_id,
         )
 

@@ -75,6 +75,9 @@ class ReadOperations(GatewayBase):
                 and self.config.expected_user_id is not None
                 and actor.id == self.config.expected_user_id
             ),
+            unresolved_write_ids=[
+                record.write_id for record in await self.coordinator.list_unresolved_writes(self.session.scope)
+            ],
             raw=_as_json_dict(
                 actor,
                 "actor",

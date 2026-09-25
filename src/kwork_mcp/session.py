@@ -655,6 +655,11 @@ class KworkSessionManager:
         await self.coordinator.record_success(scope, route)
         return result
 
+    def invalidate_web_login(self) -> None:
+        """Force a fresh kwork.ru web login before the next web write."""
+
+        self._web_logged_in = False
+
     async def ensure_web_client(self) -> Kwork:
         async with self._client_guard():
             client = await self.ensure_client()

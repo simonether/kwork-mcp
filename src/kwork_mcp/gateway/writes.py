@@ -29,6 +29,38 @@ from kwork_mcp.security import sanitize_external
 
 _WRITE_REQUEST_ADAPTER: TypeAdapter[WriteRequest] = TypeAdapter(WriteRequest)
 
+# Preflight findings that settle the write for good. Any other preflight
+# failure means the checks could not conclude, so the write stays committable.
+_DEFINITIVE_PREFLIGHT_CODES = frozenset(
+    {
+        ErrorCode.NOT_FOUND,
+        ErrorCode.CLOSED_PROJECT,
+        ErrorCode.DUPLICATE,
+        ErrorCode.INSUFFICIENT_CONNECTS,
+        ErrorCode.VALIDATION,
+        ErrorCode.PERMISSION,
+    }
+)
+
+
+def _preflight_failure(error: GatewayError) -> GatewayError:
+    """Read-only checks that cannot conclude are retryable, never reconcilable."""
+
+    if error.code is not ErrorCode.AMBIGUOUS_WRITE:
+        return error
+    return GatewayError(
+        ErrorCode.UPSTREAM_UNAVAILABLE,
+        retryable=True,
+        safe_to_retry=True,
+        diagnostic=f"preflight_inconclusive:{error.diagnostic}",
+    )
+
+
+class _InconclusiveCommitPreflightError(Exception):
+    def __init__(self, error: GatewayError) -> None:
+        super().__init__(error.safe_message)
+        self.error = error
+
 
 class WriteProtocol(OfferSubmission):
     async def _preflight(
@@ -74,7 +106,10 @@ class WriteProtocol(OfferSubmission):
             )
 
         resolved: dict[str, JsonValue] = {}
-        await self._preflight(request, resolved)
+        try:
+            await self._preflight(request, resolved)
+        except GatewayError as error:
+            raise _preflight_failure(error) from error
         payload: dict[str, Any] = {
             "request": request_json,
             "resolved": resolved,
@@ -413,7 +448,12 @@ class WriteProtocol(OfferSubmission):
             except ValidationError as exc:
                 raise ContractDriftError("stored_write_request_invalid") from exc
             fresh_resolved: dict[str, JsonValue] = {}
-            await self._preflight(request_model, fresh_resolved)
+            try:
+                await self._preflight(request_model, fresh_resolved)
+            except GatewayError as error:
+                if error.code in _DEFINITIVE_PREFLIGHT_CODES:
+                    raise
+                raise _InconclusiveCommitPreflightError(_preflight_failure(error)) from error
             handler = ACTION_HANDLERS.get(claimed.action)
             if handler is not None:
                 handler.check_fresh_resolution(stored_resolved, fresh_resolved)
@@ -425,6 +465,16 @@ class WriteProtocol(OfferSubmission):
                 remote_started=False,
             )
             raise
+        except _InconclusiveCommitPreflightError as inconclusive:
+            await self._await_durable_ledger(
+                self.coordinator.release_write_claim(
+                    write_id=write_id,
+                    scope=scope,
+                    owner=self.instance_id,
+                    note="inconclusive_commit_preflight",
+                )
+            )
+            raise inconclusive.error from inconclusive.__cause__
         except GatewayError as error:
             if error.retryable or error.code in {
                 ErrorCode.AUTH_REQUIRED,

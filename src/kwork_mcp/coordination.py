@@ -965,6 +965,7 @@ class CoordinationStore:
                         safe_to_retry=False,
                         reconciliation_required=True,
                         diagnostic="unresolved_account_write_barrier",
+                        related_write_id=str(unknown_row["write_id"]),
                     )
                 active_row = conn.execute(
                     """
@@ -1004,6 +1005,7 @@ class CoordinationStore:
                             safe_to_retry=False,
                             reconciliation_required=True,
                             diagnostic="stale_writer_became_unknown",
+                            related_write_id=recovered_active.write_id,
                         )
                 lease_expires = now + self._config.write_lease_seconds
                 conn.execute(
@@ -1284,6 +1286,66 @@ class CoordinationStore:
             conn.execute(
                 "INSERT INTO write_events(write_id,state,occurred_at,note) VALUES(?,?,?,?)",
                 (write_id, state.value, now, note),
+            )
+            updated = conn.execute("SELECT * FROM writes WHERE write_id=?", (write_id,)).fetchone()
+            return self._row_to_write(updated)
+
+        return await self._async(lambda: self._transaction(operation))
+
+    async def list_unresolved_writes(self, scope: str) -> list[StoredWrite]:
+        """Writes whose outcome is unknown; each one blocks commits for the account."""
+
+        def operation() -> list[StoredWrite]:
+            with closing(self._connect()) as conn:
+                rows = conn.execute(
+                    "SELECT * FROM writes WHERE scope=? AND state=? ORDER BY updated_at, write_id",
+                    (scope, WriteState.SUBMISSION_UNKNOWN.value),
+                ).fetchall()
+            return [self._row_to_write(row) for row in rows]
+
+        return await self._async(operation)
+
+    async def operator_resolve_write(
+        self,
+        *,
+        write_id: str,
+        scope: str,
+        state: WriteState,
+    ) -> StoredWrite:
+        """Record a human-verified outcome for a write that read-back cannot settle."""
+
+        if state not in {WriteState.RECONCILED_SUCCEEDED, WriteState.RECONCILED_ABSENT}:
+            raise ValueError(f"invalid operator resolution state: {state}")
+        now = time.time()
+        result_json = json.dumps(
+            {"operator_resolution": state.value},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+        def operation(conn: sqlite3.Connection) -> StoredWrite:
+            row = conn.execute(
+                "SELECT * FROM writes WHERE write_id=? AND scope=?",
+                (write_id, scope),
+            ).fetchone()
+            if row is None:
+                raise GatewayError(ErrorCode.NOT_FOUND, diagnostic="write_id_not_found")
+            record = self._row_to_write(row)
+            if record.state is not WriteState.SUBMISSION_UNKNOWN:
+                raise GatewayError(
+                    ErrorCode.VALIDATION,
+                    diagnostic=f"operator_resolution_requires_submission_unknown:{record.state.value}",
+                )
+            conn.execute(
+                """
+                UPDATE writes SET state=?,updated_at=?,result_json=?,error_json=NULL
+                WHERE write_id=?
+                """,
+                (state.value, now, result_json, write_id),
+            )
+            conn.execute(
+                "INSERT INTO write_events(write_id,state,occurred_at,note) VALUES(?,?,?,?)",
+                (write_id, state.value, now, "operator_resolution"),
             )
             updated = conn.execute("SELECT * FROM writes WHERE write_id=?", (write_id,)).fetchone()
             return self._row_to_write(updated)

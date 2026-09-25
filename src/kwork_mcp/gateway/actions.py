@@ -7,8 +7,9 @@ proven lives in one place instead of three parallel ``if/elif`` chains.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Awaitable, Callable
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Literal, cast
 
 from pydantic import BaseModel, JsonValue
 
@@ -29,6 +30,7 @@ from kwork_mcp.models import (
     EditMessageRequest,
     ErrorCode,
     MarkDialogReadRequest,
+    MessageRecord,
     SendMessageRequest,
     SetKworkStateRequest,
     SubmitOfferRequest,
@@ -287,11 +289,15 @@ class SendMessageHandler(ActionHandler[SendMessageRequest]):
         return False, {"user_id": user_id, "message_absent": True}
 
 
+def _text_fingerprint(text: str) -> str:
+    return hashlib.sha256(_normalize_remote_text(text).encode()).hexdigest()
+
+
 async def _require_existing_message(
     gateway: OfferSubmission,
     request: EditMessageRequest | DeleteMessageRequest,
     resolved: dict[str, JsonValue],
-) -> None:
+) -> MessageRecord:
     message = await gateway._find_message(
         username=request.username,
         message_id=request.message_id,
@@ -302,6 +308,7 @@ async def _require_existing_message(
             diagnostic="message_not_found_in_expected_dialog",
         )
     resolved["message_sender_id_at_prepare"] = message.sender_id
+    return message
 
 
 class EditMessageHandler(ActionHandler[EditMessageRequest]):
@@ -313,7 +320,9 @@ class EditMessageHandler(ActionHandler[EditMessageRequest]):
         request: EditMessageRequest,
         resolved: dict[str, JsonValue],
     ) -> None:
-        await _require_existing_message(gateway, request, resolved)
+        message = await _require_existing_message(gateway, request, resolved)
+        if message.text is not None:
+            resolved["message_text_sha256_at_prepare"] = _text_fingerprint(message.text)
 
     async def execute(
         self,
@@ -349,13 +358,17 @@ class EditMessageHandler(ActionHandler[EditMessageRequest]):
             username=str(request["username"]),
             message_id=int(request["message_id"]),
         )
-        if message is not None and message.text is None:
+        if message is None:
+            raise AmbiguousWriteError("edited_message_missing")
+        if message.text is None:
             raise AmbiguousWriteError("edited_message_text_missing")
-        if message is not None and _normalize_remote_text(message.text or "") != _normalize_remote_text(
-            str(request["text"])
-        ):
+        if _normalize_remote_text(message.text) == _normalize_remote_text(str(request["text"])):
+            success = True
+        elif _text_fingerprint(message.text) == resolved.get("message_text_sha256_at_prepare"):
+            # Still the exact text seen at prepare time: the edit did not land.
+            success = False
+        else:
             raise AmbiguousWriteError("edited_message_text_conflict")
-        success = message is not None
         return success, {
             "message_id": request["message_id"],
             "reconciled": True,
@@ -453,9 +466,11 @@ class MarkDialogReadHandler(ActionHandler[MarkDialogReadRequest]):
         record: StoredWrite,
     ) -> ReadBack:
         dialog_record = await gateway._find_dialog_by_user_id(int(request["user_id"]))
-        if dialog_record is not None and dialog_record.unread_count is None:
+        if dialog_record is None:
+            raise AmbiguousWriteError("dialog_missing")
+        if dialog_record.unread_count is None:
             raise AmbiguousWriteError("dialog_unread_count_missing")
-        success = dialog_record is not None and dialog_record.unread_count == 0
+        success = dialog_record.unread_count == 0
         return success, {
             "user_id": request["user_id"],
             "read": success,
@@ -526,17 +541,28 @@ class SubmitOrderApprovalHandler(ActionHandler[SubmitOrderApprovalRequest]):
             (item for item in orders if item.order_id == int(request["order_id"])),
             None,
         )
-        normalized_status = _optional_int(order.status) if order is not None else None
-        if order is not None and normalized_status is None:
+        if order is None:
+            raise AmbiguousWriteError("worker_order_missing")
+        normalized_status = _optional_int(order.status)
+        if normalized_status is None:
             raise AmbiguousWriteError("worker_order_status_inconclusive")
-        if order is not None and normalized_status not in {1, 4}:
+        if normalized_status not in {1, 4}:
             raise AmbiguousWriteError("worker_order_status_changed_inconclusively")
-        success = order is not None and normalized_status == 4
+        success = normalized_status == 4
         return success, {
             "order_id": request["order_id"],
             "submitted_for_approval": success,
             "reconciled": True,
         }
+
+
+def _kwork_state(group_name: str | None) -> Literal["active", "paused"] | None:
+    name = (group_name or "").casefold()
+    if "актив" in name:
+        return "active"
+    if "пауз" in name or "останов" in name:
+        return "paused"
+    return None
 
 
 class SetKworkStateHandler(ActionHandler[SetKworkStateRequest]):
@@ -555,11 +581,10 @@ class SetKworkStateHandler(ActionHandler[SetKworkStateRequest]):
         )
         if kwork is None:
             raise GatewayError(ErrorCode.NOT_FOUND, diagnostic="kwork_not_found")
-        current = (kwork.status_group_name or "").casefold()
-        if request.target_state == "active" and "актив" in current:
-            raise GatewayError(ErrorCode.DUPLICATE, diagnostic="kwork_already_active")
-        if request.target_state == "paused" and ("пауз" in current or "останов" in current):
-            raise GatewayError(ErrorCode.DUPLICATE, diagnostic="kwork_already_paused")
+        current = _kwork_state(kwork.status_group_name)
+        if current == request.target_state:
+            raise GatewayError(ErrorCode.DUPLICATE, diagnostic=f"kwork_already_{current}")
+        resolved["kwork_status_group_id_at_prepare"] = kwork.status_group_id
 
     async def execute(
         self,
@@ -612,12 +637,24 @@ class SetKworkStateHandler(ActionHandler[SetKworkStateRequest]):
             (item for item in kworks.items if item.kwork_id == int(request["kwork_id"])),
             None,
         )
-        if target is not None and not target.status_group_name:
+        if target is None:
+            raise AmbiguousWriteError("kwork_missing")
+        if not target.status_group_name:
             raise AmbiguousWriteError("kwork_status_group_missing")
-        group = target.status_group_name.casefold() if target and target.status_group_name else ""
-        success = (request["target_state"] == "active" and "актив" in group) or (
-            request["target_state"] == "paused" and ("пауз" in group or "останов" in group)
-        )
+        current = _kwork_state(target.status_group_name)
+        prepared_group = resolved.get("kwork_status_group_id_at_prepare")
+        if current == request["target_state"]:
+            success = True
+        elif prepared_group is not None and target.status_group_id == prepared_group:
+            # Unchanged since prepare: the state change did not happen.
+            success = False
+        elif prepared_group is None and current is not None:
+            # Legacy record without the prepare-time group: only the opposite
+            # state is evidence of absence.
+            success = False
+        else:
+            # Moderation, needs-fixes, hidden and similar groups prove nothing.
+            raise AmbiguousWriteError("kwork_status_group_changed_inconclusively")
         return success, {
             "kwork_id": request["kwork_id"],
             "state": request["target_state"],
