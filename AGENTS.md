@@ -1,7 +1,7 @@
 # kwork-mcp
 
 Stdio MCP gateway for the Kwork freelance marketplace: 22 tools (18 typed reads + a
-durable `prepare → commit → reconcile` write protocol) on FastMCP 3.x over the pinned
+durable `prepare → commit → reconcile` write protocol) on FastMCP 4 / MCP SDK 2 over the pinned
 `kwork==0.2.0` client. Python 3.12–3.14, managed with `uv`.
 
 ## Commands

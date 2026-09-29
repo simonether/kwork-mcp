@@ -15,7 +15,8 @@ from fastmcp.tools.function_tool import FunctionTool
 from jsonschema import validate as validate_json
 from jsonschema.protocols import Validator
 from loguru import logger
-from mcp.types import CallToolRequestParams, TextContent
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS, CallToolRequestParams, TextContent
 
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.coordination import CoordinationStore
@@ -34,7 +35,7 @@ class _StaticTool:
 
     def to_mcp_tool(self, *, name: str) -> SimpleNamespace:
         assert name == self.name
-        return SimpleNamespace(inputSchema=self._schema)
+        return SimpleNamespace(input_schema=self._schema)
 
 
 class _FakeServer:
@@ -183,23 +184,21 @@ async def test_semantic_validator_is_built_once_and_preserves_defaults() -> None
 
 
 @pytest.mark.asyncio
-async def test_unknown_tool_is_delegated_for_protocol_level_rejection(
+async def test_unknown_tool_is_a_protocol_error_that_does_not_echo_the_name(
     middleware_logs: StringIO,
 ) -> None:
     secret = "unknown-tool-with-secret-credential"
     middleware = _middleware(_FakeServer())
-    expected = ToolResult(
-        content=[TextContent(type="text", text="protocol layer")],
-        structured_content={"delegated": True},
-    )
-    call_next = AsyncMock(return_value=expected)
+    call_next = AsyncMock()
 
-    result = await middleware.on_call_tool(_context(secret, {"token": secret}), call_next)
+    with pytest.raises(MCPError) as rejected:
+        await middleware.on_call_tool(_context(secret, {"token": secret}), call_next)
 
-    assert result is expected
-    call_next.assert_awaited_once()
+    assert rejected.value.error.code == INVALID_PARAMS
+    assert secret not in str(rejected.value.error)
+    call_next.assert_not_awaited()
     assert secret not in middleware_logs.getvalue()
-    assert "mcp_unknown_tool_delegated" in middleware_logs.getvalue()
+    assert "mcp_unknown_tool_protocol_error" in middleware_logs.getvalue()
 
 
 @pytest.mark.asyncio
@@ -390,10 +389,10 @@ async def test_semantic_write_validation_is_sanitized_before_tool_and_gateway(
     assert isinstance(result.structured_content, dict)
     assert result.structured_content["knowledge_state"] == "unknown_error"
     assert result.structured_content["error"]["code"] == "validation"
-    assert tools["prepare_write"].outputSchema is not None
+    assert tools["prepare_write"].output_schema is not None
     validate_json(
         instance=result.structured_content,
-        schema=tools["prepare_write"].outputSchema,
+        schema=tools["prepare_write"].output_schema,
     )
     assert len(result.content) == 2
     assert json.loads(result.content[1].text) == result.structured_content  # type: ignore[union-attr]

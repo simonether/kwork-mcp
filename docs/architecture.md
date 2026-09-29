@@ -238,12 +238,12 @@ identity/connects/category models сохраняются все поля, объ
 Tool annotations явно различают read, prepare, commit и reconcile. Server handshake
 объявляет версию приложения 1.0.0, instructions и отключённые Tasks.
 Advertised input schemas строго проверяет server middleware до вызова tool.
-Встроенный low-level validator MCP SDK отключён намеренно: в версии 1.28.1 его
-сообщение могло отразить весь invalid payload. Middleware возвращает вместо этого
+Встроенная strict validation FastMCP/MCP SDK отключена намеренно: её сообщение
+может отразить весь invalid payload. Middleware возвращает вместо этого
 типизированный `validation` envelope без значений входа.
-Unknown tool обходится до FastMCP tool-result handler и возвращается как
-protocol-level JSON-RPC `-32602`, как требует MCP 2025-11-25; недоверенное имя не
-отражается в сообщении.
+Unknown tool middleware отклоняет как protocol-level JSON-RPC `-32602` через
+публичный middleware API FastMCP; недоверенное имя не отражается в сообщении
+(сам FastMCP 4 ответил бы `isError`-результатом с эхом имени).
 
 ## Discovery
 
@@ -266,15 +266,13 @@ High watermark пригоден для локального checkpoint и буд
 
 ## Protocol compatibility
 
-Production target — [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25).
-Handshake и tools проверяются in-memory на negotiated capabilities, instructions,
-application version, annotations и output schemas.
-
-Релевантный [draft changelog](https://modelcontextprotocol.io/specification/draft/changelog)
-и [release candidate](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
-меняют lifecycle/version negotiation и task model. Сервер не объявляет draft
-version до её стабилизации и подтверждения поддержки Codex; fail-open negotiation
-нестабильного protocol surface был бы несовместим с production gateway.
+Сервер построен на FastMCP 4 / MCP SDK 2 и обслуживает обе эпохи протокола:
+клиенты с `initialize` handshake (Codex, Claude Desktop и большинство hosts)
+договариваются на [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25),
+а клиенты с `server/discover` — на выпущенной MCP 2026-07-28. Для обеих эпох
+in-memory тесты проверяют negotiated version, server info, instructions,
+capabilities, annotations и output schemas; live-проверка на реальном аккаунте
+проходит в обоих режимах.
 
 ## MCP Tasks
 

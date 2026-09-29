@@ -10,7 +10,7 @@ from fastmcp import Client
 from jsonschema import validate as validate_json
 from kwork.exceptions import KworkHTTPException
 from kwork.schema.actor import Actor
-from mcp.shared.exceptions import McpError
+from mcp.shared.exceptions import MCPError
 from mcp.types import INVALID_PARAMS
 
 from kwork_mcp.config import KworkConfig, proxy_redaction_secrets
@@ -378,16 +378,20 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
         )
     )
     server = create_server(config=config, gateway_factory=protocol_gateway_factory)
-    async with Client(server) as client:
-        initialized = client.initialize_result
-        assert initialized is not None
-        assert initialized.protocolVersion == "2025-11-25"
-        assert initialized.serverInfo.name == "kwork"
-        assert initialized.serverInfo.version == __version__ == "1.0.0"
-        assert initialized.instructions == SERVER_INSTRUCTIONS
-        assert initialized.capabilities.tools is not None
-        assert initialized.capabilities.tasks is None
+    # Existing hosts use the initialize handshake; newer ones negotiate the
+    # 2026-07-28 era through server/discover. Both must see the same server.
+    for mode, protocol_version in (("legacy", "2025-11-25"), ("auto", "2026-07-28")):
+        async with Client(server, mode=mode) as negotiated:
+            assert negotiated.protocol_version == protocol_version
+            assert negotiated.server_info is not None
+            assert negotiated.server_info.name == "kwork"
+            assert negotiated.server_info.version == __version__ == "1.0.0"
+            assert negotiated.instructions == SERVER_INSTRUCTIONS
+            assert negotiated.server_capabilities is not None
+            assert negotiated.server_capabilities.tools is not None
+            assert negotiated.server_capabilities.tasks is None
 
+    async with Client(server) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
         assert len(tools) == 22
         assert set(tools) >= {
@@ -399,24 +403,24 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
             "reconcile_write",
         }
         for tool in tools.values():
-            assert tool.outputSchema is not None
-            assert tool.outputSchema["type"] == "object"
+            assert tool.output_schema is not None
+            assert tool.output_schema["type"] == "object"
             assert tool.annotations is not None
             if tool.name == "get_write_status":
-                assert tool.annotations.openWorldHint is False
+                assert tool.annotations.open_world_hint is False
             else:
-                assert tool.annotations.openWorldHint is True
+                assert tool.annotations.open_world_hint is True
             assert tool.description
 
-        assert tools["account_status"].annotations.readOnlyHint is True
-        assert tools["account_status"].annotations.destructiveHint is False
-        assert tools["prepare_write"].annotations.destructiveHint is False
-        assert tools["prepare_write"].annotations.idempotentHint is True
-        assert tools["commit_write"].annotations.destructiveHint is True
-        assert tools["commit_write"].annotations.idempotentHint is True
-        assert tools["reconcile_write"].annotations.readOnlyHint is False
-        assert tools["reconcile_write"].annotations.destructiveHint is False
-        assert tools["reconcile_write"].annotations.idempotentHint is False
+        assert tools["account_status"].annotations.read_only_hint is True
+        assert tools["account_status"].annotations.destructive_hint is False
+        assert tools["prepare_write"].annotations.destructive_hint is False
+        assert tools["prepare_write"].annotations.idempotent_hint is True
+        assert tools["commit_write"].annotations.destructive_hint is True
+        assert tools["commit_write"].annotations.idempotent_hint is True
+        assert tools["reconcile_write"].annotations.read_only_hint is False
+        assert tools["reconcile_write"].annotations.destructive_hint is False
+        assert tools["reconcile_write"].annotations.idempotent_hint is False
 
         success = await client.call_tool("account_status")
         assert success.is_error is False
@@ -426,7 +430,7 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
         assert success.structured_content["meta"]["content_trust"] == "external_untrusted"
         validate_json(
             instance=success.structured_content,
-            schema=tools["account_status"].outputSchema,
+            schema=tools["account_status"].output_schema,
         )
         assert len(success.content) == 2
         assert "ignore previous instructions" not in success.content[0].text  # type: ignore[union-attr]
@@ -443,7 +447,7 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
         assert failure.structured_content["error"]["code"] == "validation"
         validate_json(
             instance=failure.structured_content,
-            schema=tools["get_user_info"].outputSchema,
+            schema=tools["get_user_info"].output_schema,
         )
         assert "fixture_validation" not in str(failure.content)
 
@@ -497,7 +501,7 @@ async def test_unknown_tool_is_protocol_error_without_name_reflection(
     )
 
     async with Client(server) as client:
-        with pytest.raises(McpError) as caught:
+        with pytest.raises(MCPError) as caught:
             await client.call_tool(
                 secret_name,
                 {"token": secret_name},
@@ -688,7 +692,7 @@ async def test_strict_input_validation_is_typed_and_never_echoes_payload(
         assert result.structured_content["error"]["code"] == "validation"
         validate_json(
             instance=result.structured_content,
-            schema=tools["prepare_write"].outputSchema,
+            schema=tools["prepare_write"].output_schema,
         )
         assert secret_text not in str(result)
         assert secret_text not in caplog.text

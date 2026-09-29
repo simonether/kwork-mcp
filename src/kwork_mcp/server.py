@@ -8,8 +8,6 @@ from typing import Any
 
 from fastmcp import FastMCP
 from loguru import logger
-from mcp.shared.exceptions import McpError
-from mcp.types import INVALID_PARAMS, CallToolRequest, ErrorData
 
 from kwork_mcp.config import (
     KworkConfig,
@@ -32,26 +30,6 @@ GatewayFactory = Callable[
     [KworkConfig, CoordinationStore, KworkSessionManager],
     KworkGateway,
 ]
-
-
-def _install_unknown_tool_protocol_guard(server: FastMCP) -> None:
-    """Return protocol-level INVALID_PARAMS before the SDK can make a tool result."""
-
-    low_level = server._mcp_server  # pyright: ignore[reportPrivateUsage]
-    original_handler = low_level.request_handlers[CallToolRequest]
-
-    async def guarded_handler(request: CallToolRequest) -> Any:
-        if await server.get_tool(request.params.name) is None:
-            logger.warning("mcp_unknown_tool_protocol_error")
-            raise McpError(
-                ErrorData(
-                    code=INVALID_PARAMS,
-                    message="Unknown tool",
-                )
-            )
-        return await original_handler(request)
-
-    low_level.request_handlers[CallToolRequest] = guarded_handler
 
 
 def create_server(
@@ -103,14 +81,13 @@ def create_server(
         instructions=SERVER_INSTRUCTIONS,
         lifespan=lifespan,
         mask_error_details=True,
-        # MCP SDK 1.28.1 reflects invalid values in its low-level error text.
-        # A public FastMCP middleware below performs equivalent strict validation
-        # and returns the gateway's typed, sanitized error envelope.
+        # Built-in validation errors may echo submitted values. The middleware
+        # below performs equivalent strict validation, returns the gateway's
+        # typed, sanitized envelope, and turns unknown tools into -32602.
         strict_input_validation=False,
         tasks=False,
         list_page_size=100,
     )
     register_all(server)
     server.add_middleware(SanitizedStrictInputMiddleware(server))
-    _install_unknown_tool_protocol_guard(server)
     return server

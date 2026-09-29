@@ -15,7 +15,8 @@ from jsonschema import ValidationError as JsonSchemaValidationError
 from jsonschema.protocols import Validator
 from jsonschema.validators import validator_for
 from loguru import logger
-from mcp.types import CallToolRequestParams
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS, CallToolRequestParams
 from pydantic import ConfigDict, TypeAdapter, create_model
 from pydantic import ValidationError as PydanticValidationError
 
@@ -29,11 +30,13 @@ ValidationOutcome = ResultEnvelope[Any]
 class SanitizedStrictInputMiddleware(Middleware):
     """Validate advertised schemas without echoing hostile or secret values.
 
-    MCP SDK 1.28.1's built-in strict validator includes ``ValidationError.message``
-    in the response. For ``oneOf`` and scalar constraints that message can contain
-    the complete submitted instance. The server disables that low-level validator
-    and applies the same JSON Schema validation here, before FastMCP invokes or
-    logs function argument validation.
+    Built-in strict validators include ``ValidationError.message`` in the
+    response; for ``oneOf`` and scalar constraints that message can contain the
+    complete submitted instance. The server disables them and applies the same
+    JSON Schema validation here, before FastMCP invokes or logs function argument
+    validation. Unknown tools become a protocol-level ``-32602`` that does not
+    echo the requested name (FastMCP itself answers with an isError result that
+    does).
     """
 
     def __init__(self, server: FastMCP) -> None:
@@ -48,7 +51,7 @@ class SanitizedStrictInputMiddleware(Middleware):
         tool = await self._server.get_tool(tool_name)
         if tool is None:
             return None
-        schema = tool.to_mcp_tool(name=tool.name).inputSchema
+        schema = tool.to_mcp_tool(name=tool.name).input_schema
         validator_class = validator_for(schema)
         validator_class.check_schema(schema)
         validator = validator_class(schema)
@@ -123,8 +126,10 @@ class SanitizedStrictInputMiddleware(Middleware):
                 internal=True,
             )
         if validator is None:
-            logger.warning("mcp_unknown_tool_delegated")
-            return await call_next(context)
+            # FastMCP answers an unknown tool with an isError result that echoes
+            # the requested name; reply with a protocol error that does not.
+            logger.warning("mcp_unknown_tool_protocol_error")
+            raise MCPError(code=INVALID_PARAMS, message="Unknown tool")
         try:
             arguments = context.message.arguments or {}
             validator.validate(arguments)

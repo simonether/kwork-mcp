@@ -3,6 +3,16 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 проект следует [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- FastMCP 4.0.10 и MCP SDK 2.2.0. Сервер обслуживает обе эпохи протокола:
+  `initialize` handshake (MCP 2025-11-25, текущие Codex/Claude Desktop) и
+  `server/discover` (MCP 2026-07-28).
+- Неизвестный tool отклоняется как `-32602` через публичный middleware API
+  FastMCP вместо подмены внутреннего обработчика MCP SDK.
+
 ## [1.0.0] - 2026-09-25
 
 Первый стабильный релиз 1.0. Все read-tools проверены на реальном аккаунте Kwork.
