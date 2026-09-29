@@ -12,10 +12,10 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TextIO, cast
+from typing import Any, Self, TextIO, cast
 
 from kwork.schema.actor import Actor
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr, ValidationError, model_validator
 
 from kwork_mcp.config import KworkConfig, contains_unsafe_text_codepoint
 from kwork_mcp.coordination import CoordinationStore, StoredWrite
@@ -36,9 +36,10 @@ from kwork_mcp.version import __version__
 _HELP = """\
 kwork-mcp-bootstrap — безопасная одноразовая авторизация Kwork
 
-Команда не принимает credentials через argv или .env. Заранее задайте только
-KWORK_EXPECTED_USER_ID и, при необходимости, KWORK_STATE_DIR. Login/password,
-последние цифры телефона и proxy вводятся скрыто через настоящий TTY.
+Команда не принимает credentials через argv или .env. Login/password, последние
+цифры телефона и proxy вводятся скрыто через настоящий TTY. Если
+KWORK_EXPECTED_USER_ID не задан, bootstrap покажет найденный аккаунт и попросит
+подтвердить привязку; если задан, аккаунт обязан совпасть с ним.
 
 Если существует legacy ~/.kwork_token с owner=current user и mode 0600, CLI
 предложит явно проверить и импортировать его. Обычный MCP server legacy-файл
@@ -62,10 +63,24 @@ _BOOTSTRAP_CLOSE_TIMEOUT_SECONDS = 5.0
 _BOOTSTRAP_CLOSE_CANCEL_GRACE_SECONDS = 0.1
 
 
+class _BootstrapEnvironment(KworkConfig):
+    """Non-secret bootstrap settings, read before the account is known.
+
+    The steady-state rule "no credentials requires KWORK_EXPECTED_USER_ID" does
+    not apply here: bootstrap prompts for credentials afterwards and can
+    discover the account ID itself.
+    """
+
+    @model_validator(mode="after")
+    def validate_auth_and_legacy_options(self) -> Self:
+        self._validate_common_options()
+        return self
+
+
 def _base_bootstrap_config() -> KworkConfig:
     """Read only non-secret environment settings and override inherited auth."""
 
-    return KworkConfig(
+    return _BootstrapEnvironment(
         login="",
         password=SecretStr(""),
         phone_last=None,
@@ -84,10 +99,13 @@ def _auth_config(
     phone_last: str = "",
     proxy_url: str = "",
     token: str = "",
+    expected_user_id: int | None = None,
 ) -> KworkConfig:
     """Construct and revalidate a fresh settings object with prompted secrets."""
 
     values = base.model_dump()
+    if expected_user_id is not None:
+        values["expected_user_id"] = expected_user_id
     values.update(
         {
             "login": login,
@@ -102,18 +120,23 @@ def _auth_config(
     return KworkConfig(**values)
 
 
-def _validate_actor(config: KworkConfig, actor: Actor) -> None:
+def _require_safe_identity(actor: Actor) -> tuple[int, str]:
     if actor.id is None or actor.id <= 0 or not actor.username or contains_unsafe_text_codepoint(actor.username):
         raise GatewayError(
             ErrorCode.CONTRACT_DRIFT,
             diagnostic="bootstrap_actor_missing_safe_identity",
         )
-    if actor.id != config.expected_user_id:
+    return actor.id, actor.username
+
+
+def _validate_actor(config: KworkConfig, actor: Actor) -> None:
+    user_id, username = _require_safe_identity(actor)
+    if user_id != config.expected_user_id:
         raise GatewayError(
             ErrorCode.ACCOUNT_MISMATCH,
             diagnostic="bootstrap_expected_user_id_mismatch",
         )
-    if config.expected_username and actor.username.casefold() != config.expected_username.casefold():
+    if config.expected_username and username.casefold() != config.expected_username.casefold():
         raise GatewayError(
             ErrorCode.ACCOUNT_MISMATCH,
             diagnostic="bootstrap_expected_username_mismatch",
@@ -229,6 +252,52 @@ async def _close_bootstrap_client(
         child_cancelled=close_task.cancelled(),
         timed_out=True,
     )
+
+
+async def discover_account(
+    config: KworkConfig,
+    coordinator: CoordinationStore,
+    *,
+    client_factory: ClientFactory = make_client,
+) -> tuple[Actor, str]:
+    """Sign in once without a binding and return the account and its token.
+
+    Nothing is stored: the caller confirms the account with the operator and
+    then binds it through ``bootstrap_account`` using the returned token.
+    """
+
+    scope = config.bootstrap_scope
+    client: Any = client_factory(config)
+    try:
+        if config.token_value:
+            token = config.token_value
+            set_client_token(client, token)
+        else:
+            token = await _coordinated_auth_call(
+                coordinator,
+                scope=scope,
+                route="signIn",
+                operation=client.get_token,
+            )
+            if not token:
+                raise GatewayError(ErrorCode.CONTRACT_DRIFT, diagnostic="bootstrap_empty_login_token")
+            register_redaction_secrets((token,))
+        actor = await _coordinated_auth_call(
+            coordinator,
+            scope=scope,
+            route="actor",
+            operation=client.get_me,
+        )
+        _require_safe_identity(actor)
+        return actor, token
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        raise classify_upstream_error(exc) from exc
+    finally:
+        close_outcome = await _close_bootstrap_client(client)
+        if close_outcome.caller_cancelled:
+            raise asyncio.CancelledError
 
 
 async def bootstrap_account(
@@ -623,6 +692,26 @@ async def run_bootstrap_cli(
             )
 
         configure_logging(config)
+        if config.expected_user_id is None:
+            discovered, token = await discover_account(
+                config,
+                coordinator,
+                client_factory=client_factory,
+            )
+            answer = _visible_prompt(
+                f"Найден аккаунт Kwork: {discovered.username} (user_id={discovered.id}). Привязать его? [y/N]: ",
+                stdin=stdin,
+                stderr=stderr,
+            )
+            if answer.casefold() not in _CONFIRMATIONS:
+                stderr.write("Bootstrap отменён: credential store не изменён.\n")
+                return 1
+            config = _auth_config(
+                base,
+                token=token,
+                proxy_url=config.proxy_value or "",
+                expected_user_id=discovered.id,
+            )
         actor = await bootstrap_account(
             config,
             coordinator,

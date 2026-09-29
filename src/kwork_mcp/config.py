@@ -266,15 +266,18 @@ class KworkConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_auth_and_legacy_options(self) -> KworkConfig:
-        password_set = bool(self.password.get_secret_value())
-        if bool(self.login) != password_set:
-            raise ValueError("KWORK_LOGIN and KWORK_PASSWORD must be provided together")
+        self._validate_common_options()
         if (
             not self.token_value
-            and not (self.login and password_set)
+            and not self.fresh_credentials_available
             and (self.expected_user_id is None or not self.persist_token)
         ):
             raise ValueError("credentialless startup requires KWORK_EXPECTED_USER_ID and KWORK_PERSIST_TOKEN=true")
+        return self
+
+    def _validate_common_options(self) -> None:
+        if bool(self.login) != bool(self.password.get_secret_value()):
+            raise ValueError("KWORK_LOGIN and KWORK_PASSWORD must be provided together")
         if self.token_file is not None:
             raise ValueError(
                 "KWORK_TOKEN_FILE was removed in 1.0; use KWORK_STATE_DIR for the secured account-scoped store"
@@ -283,7 +286,6 @@ class KworkConfig(BaseSettings):
             raise ValueError("KWORK_ENABLE_WRITES requires KWORK_EXPECTED_USER_ID")
         if self.retry_backoff_max < self.retry_backoff_base:
             raise ValueError("retry_backoff_max must be >= retry_backoff_base")
-        return self
 
     @property
     def token_value(self) -> str:
