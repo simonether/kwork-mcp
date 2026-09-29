@@ -3,10 +3,18 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 проект следует [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-29
+
+### Added
+
+- `kwork-mcp-bootstrap` без `KWORK_EXPECTED_USER_ID`: после входа показывает
+  найденный аккаунт и привязывает его после подтверждения в TTY. ID больше не
+  нужно искать заранее; логин выполняется один раз.
 
 ### Changed
 
+- README переписан для пользователя: примеры запросов к агенту, быстрый старт в
+  три шага, включение записи и раздел «Если что-то не работает».
 - FastMCP 4.0.10 и MCP SDK 2.2.0. Сервер обслуживает обе эпохи протокола:
   `initialize` handshake (MCP 2025-11-25, текущие Codex/Claude Desktop) и
   `server/discover` (MCP 2026-07-28).
@@ -135,5 +143,6 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
+[1.1.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.0.0
 [1.0.0rc1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.0.0rc1

@@ -17,16 +17,21 @@ Normal MCP читает только allowlisted safe policy/identity settings �
 До первого запуска выполните отдельную CLI в настоящем TTY:
 
 ```bash
-KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap
+kwork-mcp-bootstrap
 ```
+
+Без `KWORK_EXPECTED_USER_ID` bootstrap после входа показывает найденный аккаунт
+(`username` и `user_id`) и привязывает его только после явного подтверждения в TTY;
+логин выполняется один раз. Если ID задан заранее
+(`KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap`), аккаунт обязан с ним совпасть.
 
 Login, password, optional last-four phone digits и optional proxy URL считываются
 через `getpass`, никогда не принимаются в argv и не выводятся. Proxy URL допускает
 только `http`, `socks4` и `socks5` с явным port; `https`, `socks5h`, path, query и
 fragment отклоняются; URL сохраняется как введён, чтобы записи rc1 оставались
 валидными. Bootstrap выполняет
-только authentication + `get_me`, проверяет exact numeric ID и затем сохраняет
-record. Normal `kwork-mcp` требует `EXPECTED_USER_ID + PERSIST_TOKEN=true` и
+только authentication + `get_me`, проверяет exact numeric ID (заданный или
+подтверждённый) и затем сохраняет record. Normal `kwork-mcp` требует `EXPECTED_USER_ID + PERSIST_TOKEN=true` и
 проверяет сохранённый token через `get_me`; если record отсутствует, возвращается
 `auth_required`, если token отвергнут — `auth_expired`. Интерактивного fallback и
 циклического fresh login нет.
@@ -65,9 +70,9 @@ special bits отклоняются. Trusted non-final aliases раскрыва�
 `O_NOFOLLOW`, поэтому alias target/race не может скрыть writable ancestor.
 `coordination.sqlite3`, credential/lock files должны иметь `0600`. Account record
 содержит verified token и optional proxy URL.
-Legacy record без proxy означает direct connection. Record с `https` proxy, без
-явного port или со scheme не в нижнем регистре (мог быть сохранён 1.0.0rc1) при
-загрузке отклоняется как `validation`. Чтобы добавить, заменить или
+Legacy record без proxy означает direct connection. Record с `https` proxy или без
+явного port (такой proxy не работал и в 1.0.0rc1) при загрузке отклоняется как
+`validation`; регистр scheme не важен. Чтобы добавить, заменить или
 удалить proxy, остановите процессы account/state, повторите bootstrap и
 перезапустите MCP; уже открытый client record не перечитывает. Не размещайте общий
 state на NFS или другом filesystem без надёжных POSIX locks/SQLite semantics.

@@ -7,153 +7,70 @@
 [![Python](https://img.shields.io/badge/python-3.12%E2%80%933.14-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-`kwork-mcp` 1.0 — production-grade stdio MCP-шлюз к Kwork для Claude Code, Claude
-Desktop, Codex, Cursor и других MCP-клиентов. Он даёт типизированные
-read-результаты, проверяет фактический аккаунт, координирует лимиты между
-процессами и проводит все записи через durable `prepare → commit → reconcile`.
+`kwork-mcp` подключает ваш аккаунт [Kwork](https://kwork.ru) к ИИ-агенту: Claude
+Code, Claude Desktop, Codex, Cursor и другим MCP-клиентам. Агент ищет проекты на
+бирже, читает диалоги, заказы и офферы, готовит отклики. Отправить что-то на Kwork
+он может только если вы включили запись, и только после вашего подтверждения.
 
-Это breaking redesign. Для миграции с 0.2.x см.
-[руководство по миграции](docs/migration-1.0.md).
+## Что можно попросить у агента
 
-## Что гарантирует шлюз
+- «Найди свежие проекты про Telegram-ботов с бюджетом от 20 000 ₽ и скажи, какие
+  мне подходят».
+- «Покажи диалоги с непрочитанными сообщениями и предложи ответы».
+- «Что с моими заказами? Где что-то ждёт моих действий?»
+- «Сколько у меня коннектов и какие мои отклики ещё висят?»
+- «Подготовь отклик на проект 3257238: 15 000 ₽, 5 дней» — агент покажет точный
+  текст и цену и отправит только после вашего «да».
 
-- `structuredContent` соответствует объявленному `outputSchema`; текстовый `content`
-  сохраняет краткое резюме и JSON-копию результата.
-- Read-операции различают `known_data`, `known_empty` и `unknown_error`; ошибки
-  возвращаются с `isError=true` и стабильным кодом.
-- Перед каждым write заново проверяются `KWORK_EXPECTED_USER_ID` и фактический
-  аккаунт. Без `KWORK_ENABLE_WRITES=true` запись невозможна.
-- Точный payload, его SHA-256, TTL, confirmation token и idempotency key связаны в
-  общем SQLite ledger. Одну операцию выполняет только один процесс.
-- Неоднозначный результат записи не повторяется автоматически: состояние
-  `submission_unknown` требует `reconcile_write`. Пропавший объект или неизвестный
-  статус не считаются доказательством; если сверка не сходится, оператор фиксирует
-  исход вручную через `kwork-mcp-bootstrap resolve-write`.
-- Лимиты account/route, защита от burst и circuit breaker общие для всех процессов,
-  использующих один `KWORK_STATE_DIR`; fingerprint общей policy не позволяет
-  процессу с другими лимитами ослабить координацию.
-- `kwork==0.2.0` закреплён; сигнатуры и generic routes проверяются fail-loud при
-  старте и contract-тестами.
-- Token и optional proxy сохраняются в account-scoped файлах с `0700/0600`,
-  `flock`, проверкой всей ancestor chain, `O_NOFOLLOW`/FD-anchored traversal и
-  atomic replace. Runtime-discovered credentials динамически редактируются в логах
-  и внешних данных.
-- Тексты проектов, профилей, сообщений и уведомлений помечаются
-  `external_untrusted` и не являются инструкциями для агента.
+## Быстрый старт
 
-## Установка
+Нужны macOS или Linux, Python 3.12–3.14 и [uv](https://docs.astral.sh/uv/).
+Windows не поддерживается.
 
-Требуются Python 3.12–3.14 и [uv](https://docs.astral.sh/uv/).
+### 1. Войдите в Kwork (один раз)
+
+Запустите в обычном терминале:
 
 ```bash
-uvx --from kwork-mcp==1.0.0 kwork-mcp-bootstrap --help
+uvx --from kwork-mcp==1.1.0 kwork-mcp-bootstrap
 ```
 
-Из исходников:
+Команда скрыто спросит логин и пароль Kwork, а также, по желанию, последние 4 цифры
+телефона и прокси. Затем покажет найденный аккаунт:
 
-```bash
-git clone https://github.com/simonether/kwork-mcp.git
-cd kwork-mcp
-uv sync --locked --dev
-uv run kwork-mcp-bootstrap --help
+```text
+Найден аккаунт Kwork: your_name (user_id=123456). Привязать его? [y/N]: да
 ```
 
-`kwork-mcp` использует только stdio. Все его логи идут в stderr; stdout
-зарезервирован для MCP JSON-RPC. `kwork-mcp-bootstrap` — отдельная human CLI и не
-является MCP transport.
+После подтверждения токен сохраняется в защищённое хранилище на вашем компьютере
+(`~/.local/state/kwork-mcp`), а в конце команда выводит ваш `user_id`. Он нужен
+на следующем шаге. Логин и пароль нигде не сохраняются.
 
-## Безопасная конфигурация
+### 2. Подключите агента
 
-Обычный сервер работает без login/password/token/proxy в конфигурации host.
-Единственный поддерживаемый production flow:
+Замените `123456` на свой `user_id`.
 
-1. Узнайте стабильный numeric `user_id` своего аккаунта из настроек/профиля Kwork.
-2. Один раз запустите bootstrap из настоящего terminal TTY:
-
-```bash
-KWORK_EXPECTED_USER_ID=123456 \
-  uvx --from kwork-mcp==1.0.0 kwork-mcp-bootstrap
-```
-
-CLI скрыто запросит login/password, optional phone digits и optional proxy URL,
-вызовет только auth + `get_me`, сверит точный `user_id` и атомарно запишет
-account-bound credential record. Если существует legacy `~/.kwork_token`, CLI
-предложит явный validated import: только regular file текущего владельца с mode
-`0600`, без symlink. Legacy-файл после успешного импорта намеренно остаётся на
-месте, чтобы удаление было отдельным осознанным действием.
-
-3. Запускайте normal MCP только с безопасными steady-state ключами:
-
-```bash
-export KWORK_EXPECTED_USER_ID='123456'
-export KWORK_PERSIST_TOKEN='true'
-export KWORK_ENABLE_WRITES='false'
-uvx --from kwork-mcp==1.0.0 kwork-mcp
-```
-
-Normal entrypoint fail-closed отклоняет `KWORK_LOGIN`, `KWORK_PASSWORD`,
-`KWORK_TOKEN`, `KWORK_PHONE_LAST` и `KWORK_PROXY_URL`, даже если они пришли через
-environment. Не помещайте эти значения в Codex/Claude MCP config: некоторые hosts
-встраивают env map в собственный process argv. `.env` из cwd никогда не
-загружается. Secret values не принимаются через argv.
-
-После запуска вызовите `account_status` и сверьте `user_id`. Только затем включайте
-`KWORK_ENABLE_WRITES=true`. `KWORK_EXPECTED_USERNAME` — дополнительная, более
-хрупкая проверка: username может быть переименован, primary identity — numeric ID.
-
-По умолчанию состояние хранится в
-`$XDG_STATE_HOME/kwork-mcp` либо `~/.local/state/kwork-mcp`. Это каталог с токенами
-и `coordination.sqlite3`; все процессы одного аккаунта должны использовать один
-локальный `KWORK_STATE_DIR` и одинаковые shared rate/circuit/write settings.
-Несовместимый fingerprint отклоняется fail-loud. Файлы содержат чувствительные
-данные и не зашифрованы самим приложением — используйте защищённую учётную запись
-ОС и шифрование диска. Вся физическая ancestor chain должна принадлежать текущему
-user либо root и не быть group/other-writable. Разрешён один стандартный sticky
-temp boundary (например, `/tmp`), после которого gateway создаёт private `0700`
-каталог; обычный `0777` parent, чужой owner, final symlink или подмена компонента
-отклоняются.
-Версия 1.0 использует POSIX `fcntl`/`flock` и поддерживает Linux/macOS, но не
-Windows.
-
-Optional proxy вводится только bootstrap-команде и сохраняется рядом с token в
-защищённом account record; normal server не принимает `KWORK_PROXY_URL`. Legacy
-record без proxy означает прямое подключение. Чтобы добавить, заменить или удалить
-proxy либо обновить истёкшую сессию, остановите процессы этого account/state,
-повторите bootstrap и перезапустите MCP. Файл защищён правами ОС, но не шифруется
-на уровне приложения.
-
-Полный справочник: [docs/configuration.md](docs/configuration.md).
-
-## Подключение к MCP-клиенту
-
-Сначала выполните bootstrap в обычном терминале, как показано выше. В конфигурацию
-клиента передаются только безопасные значения: `KWORK_EXPECTED_USER_ID`,
-`KWORK_PERSIST_TOKEN` и `KWORK_ENABLE_WRITES`. Замените `123456` на свой
-`user_id`. После изменения конфигурации перезапустите клиент и вызовите
-`account_status`.
-
-### Claude Code
+**Claude Code:**
 
 ```bash
 claude mcp add kwork --scope user \
   -e KWORK_EXPECTED_USER_ID=123456 \
   -e KWORK_PERSIST_TOKEN=true \
   -e KWORK_ENABLE_WRITES=false \
-  -- uvx --from kwork-mcp==1.0.0 kwork-mcp
+  -- uvx --from kwork-mcp==1.1.0 kwork-mcp
 ```
 
-Проверка: `claude mcp list` должен показать `kwork` в состоянии connected.
+<details>
+<summary><b>Claude Desktop</b></summary>
 
-### Claude Desktop
-
-Добавьте сервер в `claude_desktop_config.json` (Settings → Developer → Edit Config):
+Settings → Developer → Edit Config, в `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["--from", "kwork-mcp==1.0.0", "kwork-mcp"],
+      "args": ["--from", "kwork-mcp==1.1.0", "kwork-mcp"],
       "env": {
         "KWORK_EXPECTED_USER_ID": "123456",
         "KWORK_PERSIST_TOKEN": "true",
@@ -164,185 +81,135 @@ claude mcp add kwork --scope user \
 }
 ```
 
-Если Claude Desktop не находит `uvx`, укажите абсолютный путь из `which uvx`.
+Если Claude Desktop не находит `uvx`, укажите полный путь из `which uvx`.
+</details>
 
-### Cursor
+<details>
+<summary><b>Cursor</b></summary>
 
-Тот же блок `mcpServers` добавляется в `~/.cursor/mcp.json` (глобально) или в
+Тот же блок `mcpServers`, что для Claude Desktop, в `~/.cursor/mcp.json` или в
 `.cursor/mcp.json` проекта.
+</details>
 
-### Codex
+<details>
+<summary><b>Codex</b></summary>
 
-Добавьте в `~/.codex/config.toml`:
+В `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.kwork]
 command = "uvx"
-args = ["--from", "kwork-mcp==1.0.0", "kwork-mcp"]
+args = ["--from", "kwork-mcp==1.1.0", "kwork-mcp"]
 
 [mcp_servers.kwork.env]
 KWORK_EXPECTED_USER_ID = "123456"
 KWORK_PERSIST_TOKEN = "true"
 KWORK_ENABLE_WRITES = "false"
 ```
+</details>
 
-Для локальной checkout-версии:
+Не добавляйте в конфиг клиента логин, пароль, токен или прокси: сервер с ними
+откажется запускаться. Всё это вводится только через `kwork-mcp-bootstrap`.
 
-```toml
-[mcp_servers.kwork]
-command = "uv"
-args = ["--directory", "/absolute/path/to/kwork-mcp", "run", "kwork-mcp"]
+### 3. Проверьте
 
-[mcp_servers.kwork.env]
-KWORK_EXPECTED_USER_ID = "123456"
-KWORK_PERSIST_TOKEN = "true"
-KWORK_ENABLE_WRITES = "false"
+Перезапустите клиент и попросите агента: «проверь статус аккаунта Kwork». Он
+вызовет `account_status` и покажет ваш `user_id` и имя.
+
+## Отправка откликов и сообщений
+
+По умолчанию агент только читает. Чтобы он мог отправлять отклики и сообщения,
+удалять офферы и менять статус кворков, замените в конфиге клиента
+`KWORK_ENABLE_WRITES=false` на `true` и перезапустите клиент. Для Claude Code:
+
+```bash
+claude mcp remove kwork --scope user
+claude mcp add kwork --scope user \
+  -e KWORK_EXPECTED_USER_ID=123456 \
+  -e KWORK_PERSIST_TOKEN=true \
+  -e KWORK_ENABLE_WRITES=true \
+  -- uvx --from kwork-mcp==1.1.0 kwork-mcp
 ```
 
-Codex CLI, IDE extension и desktop app используют общую MCP-конфигурацию host.
+Каждая запись идёт в два шага. Сначала агент готовит точный запрос (текст, цену,
+получателя) и показывает его вам. Только после вашего подтверждения запрос уходит
+на Kwork. Сервер помнит каждую запись и никогда не повторяет её сам.
 
-Ни в одном клиенте не добавляйте token/login/password/phone/proxy — ни как `env`,
-ни как `env_vars`, ни как arguments: сервер откажется запускаться.
+Если связь оборвалась в момент отправки, результат становится «неизвестным», и
+агент сверяет его с Kwork, прежде чем делать что-то ещё. Пока такая запись не
+сверена, новые отправки для аккаунта заблокированы, чтобы не создать дубль.
 
-## MCP tools
+## Если что-то не работает
 
-### Read-only
-
-| Tool | Результат |
+| Что видите | Что делать |
 |---|---|
-| `account_status` | Фактический account ID, binding, готовность writes и `unresolved_write_ids` |
-| `get_connects` | Активные и общие коннекты |
-| `get_user_info`, `search_users` | Профиль/поиск пользователей |
-| `discover_projects` | `favorites`, `all` или `category_ids`, фильтры и opaque cursor |
-| `get_project`, `get_exchange_info` | Проект и полная exchange-информация |
-| `list_my_offers`, `get_offer` | Офферы с обязательными `offer_id` и `project_id` |
-| `list_worker_orders`, `get_order_details` | Заказы продавца и полные details |
-| `list_dialogs`, `get_dialog` | Диалоги и сообщения |
-| `list_my_kworks`, `get_kwork_details` | Собственные кворки |
-| `list_categories`, `list_favorite_categories` | Категории |
-| `list_notifications` | Полные группы уведомлений |
+| `auth_required` или `auth_expired` | Токен отсутствует или истёк: снова запустите `kwork-mcp-bootstrap` и перезапустите клиент |
+| Сервер не стартует, «некорректная конфигурация: …» | Проверьте названные переменные `KWORK_*` в конфиге клиента |
+| `captcha` | Войдите в Kwork в браузере, пройдите капчу, затем повторите `kwork-mcp-bootstrap` |
+| Claude Desktop не видит сервер | Укажите полный путь к `uvx` (`which uvx`) и перезапустите приложение |
+| `ambiguous_write` с `related_write_id` | Отправка с неизвестным результатом блокирует новые. Попросите агента выполнить `reconcile_write` для этого ID |
+| Сверка долго не сходится | Проверьте операцию на kwork.ru и зафиксируйте исход вручную (команды ниже) |
 
-`discover_projects` не смешивает режимы:
-
-- `favorites` — избранные категории аккаунта;
-- `all` — вся биржа;
-- `category_ids` — обязательный непустой список ID.
-
-Возвращаемый `PageInfo` содержит `next_cursor`, `query_fingerprint` и
-`high_watermark`. Cursor подписан и привязан к подтверждённому аккаунту и точным
-фильтрам. Watermark позволяет клиенту вести локальную точку наблюдения для
-будущего delta polling, но 1.0 не обещает отдельный delta endpoint.
-
-### Safe write-flow
-
-Поддерживаемые `request.action`: `submit_offer`, `delete_offer`, `send_message`,
-`edit_message`, `delete_message`, `mark_dialog_read`, `submit_order_approval`,
-`set_kwork_state`.
-
-1. Вызовите `prepare_write` с точным request и собственным стабильным
-   `idempotency_key`.
-2. Проверьте возвращённые `payload`, `payload_hash`, account ID и `expires_at`.
-3. Передайте неизменённые `write_id`, `payload_hash` и `confirmation_token` в
-   `commit_write`.
-4. Если state равен `submission_unknown`, не вызывайте commit повторно. После
-   visibility window вызовите `reconcile_write(write_id)`. Пока такая запись не
-   сверена, новые commit для аккаунта отклоняются с `ambiguous_write`, а
-   `error.related_write_id` называет запись, которую нужно сверить.
-5. `get_write_status` читает durable ledger без remote write.
-
-Пример payload для подготовки оффера:
-
-```json
-{
-  "request": {
-    "action": "submit_offer",
-    "project_id": 123,
-    "title": "Точное название предложения",
-    "description": "Описание длиной не менее 150 символов, соответствующее проекту и не содержащее секретов.",
-    "price": 10000,
-    "duration_days": 5
-  },
-  "idempotency_key": "project-123-offer-v1"
-}
-```
-
-Remote write никогда не retry автоматически. Повторный `prepare_write` с тем же
-idempotency key и другим request возвращает `idempotency_conflict`; пока исходная
-запись остаётся `prepared`, точный replay того же request возвращает ту же запись и
-тот же HMAC-derived confirmation token. Это позволяет безопасно восстановиться
-после потери ответа `prepare`, не создавая второй intent. После claim/terminal state
-confirmation token больше не выдаётся; состояние читается через
-`get_write_status`.
-
-Если `reconcile_write` долго остаётся неоднозначным (например, кворк ушёл на
-модерацию или сообщение удалено), проверьте операцию на kwork.ru и зафиксируйте
-исход вручную. Команды запускаются с теми же `KWORK_*` настройками, что и сервер,
-а `resolve-write` требует TTY и явного подтверждения:
+Ручная фиксация исхода запускается с теми же `KWORK_*` переменными, что у сервера:
 
 ```bash
 kwork-mcp-bootstrap pending-writes
-kwork-mcp-bootstrap resolve-write <write_id> succeeded
-kwork-mcp-bootstrap resolve-write <write_id> absent
+kwork-mcp-bootstrap resolve-write <write_id> succeeded   # операция на Kwork прошла
+kwork-mcp-bootstrap resolve-write <write_id> absent      # операции на Kwork нет
 ```
 
-## Модель результата и ошибок
+## Инструменты
 
-Каждый tool возвращает envelope версии `1.0`:
+**Чтение:**
 
-```json
-{
-  "schema_version": "1.0",
-  "knowledge_state": "known_data",
-  "summary": "…",
-  "data": {},
-  "error": null,
-  "meta": {
-    "source": "kwork",
-    "content_trust": "external_untrusted",
-    "observed_at": "…",
-    "correlation_id": "…",
-    "upstream_contract": "kwork==0.2.0"
-  }
-}
-```
+| Инструмент | Что делает |
+|---|---|
+| `account_status` | Какой аккаунт подключён, включена ли запись, есть ли несверенные отправки |
+| `get_connects` | Баланс коннектов |
+| `discover_projects`, `get_project` | Проекты биржи: избранные категории, вся биржа или выбранные категории, фильтры по цене и откликам |
+| `get_exchange_info` | Сводка по бирже |
+| `list_my_offers`, `get_offer` | Ваши отклики |
+| `list_worker_orders`, `get_order_details` | Ваши заказы как продавца |
+| `list_dialogs`, `get_dialog` | Диалоги и сообщения |
+| `list_my_kworks`, `get_kwork_details` | Ваши кворки |
+| `get_user_info`, `search_users` | Профили пользователей |
+| `list_categories`, `list_favorite_categories` | Категории |
+| `list_notifications` | Уведомления |
 
-Коды ошибок и retry/reconciliation semantics описаны в
-[docs/security.md](docs/security.md#error-taxonomy).
-Неизвестное имя tool является protocol-level JSON-RPC `-32602`, а не обычным
-`isError` business-result; имя из недоверенного запроса намеренно не отражается в
-сообщении.
+**Запись:** `prepare_write` → `commit_write`, а также `get_write_status` и
+`reconcile_write`. Поддерживаются отклик на проект, удаление отклика, отправка,
+правка и удаление сообщения, отметка диалога прочитанным, сдача заказа на проверку
+и запуск или пауза кворка.
 
-## Архитектура и границы
+## Безопасность
 
-Шлюз отвечает за MCP transport, авторизацию Kwork, account binding, корректность
-upstream-контракта, типизацию данных и безопасную доставку write-запроса. Он
-намеренно не содержит скоринг проектов, Notion, Telegram, email, CRM и другую
-pipeline/business logic.
+- Логин, пароль и прокси вводятся только в `kwork-mcp-bootstrap` через скрытый ввод
+  и не попадают в конфиг клиента.
+- Сервер работает только с аккаунтом, указанным в `KWORK_EXPECTED_USER_ID`, и
+  проверяет его перед каждой записью.
+- Тексты проектов, профилей и сообщений помечаются как внешние данные, а не
+  инструкции для агента.
+- Токен лежит в файлах с правами `0600`. Приложение их не шифрует, поэтому
+  используйте шифрование диска.
+- Лимиты запросов к Kwork общие для всех процессов одного аккаунта.
 
-MCP Tasks отключены. Стабильная спецификация считает их экспериментальными, а
-MCP-клиенту для коротких Kwork API-вызовов durable task lifecycle не даёт пользы.
-Durability write-flow реализована внутри ledger и доступна обычными tools без
-нестабильного protocol surface.
-
-Подробнее: [архитектура](docs/architecture.md) и
-[security model](docs/security.md).
+Подробно: [модель безопасности](docs/security.md), [настройки](docs/configuration.md),
+[архитектура](docs/architecture.md), [переход с 0.2.x](docs/migration-1.0.md).
 
 ## Разработка
 
 ```bash
+git clone https://github.com/simonether/kwork-mcp.git
+cd kwork-mcp
 uv sync --locked --dev
-uv run ruff check .
-uv run ruff format --check .
+uv run ruff check . && uv run ruff format --check .
 uv run mypy
-uv run pytest tests/ -v --cov=kwork_mcp --cov-report=term-missing
-uv build
-uv run twine check dist/*
-uv run check-wheel-contents dist/*.whl
+uv run pytest tests/ -q --cov=kwork_mcp
 ```
 
-Coverage gate — 92% branch-aware покрытия. CI дополнительно проверяет Python
-3.12–3.14, зависимости, секреты, pinned MCP Registry schema, wheel install smoke
-и согласованность версий.
+Для запуска из исходников в конфиге клиента используйте
+`uv --directory /path/to/kwork-mcp run kwork-mcp` вместо `uvx`. Правила для
+изменений и устройство кода описаны в [AGENTS.md](AGENTS.md).
 
 ## Лицензия
 

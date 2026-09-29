@@ -236,7 +236,7 @@ identity/connects/category models сохраняются все поля, объ
 ложный успех.
 
 Tool annotations явно различают read, prepare, commit и reconcile. Server handshake
-объявляет версию приложения 1.0.0, instructions и отключённые Tasks.
+объявляет версию приложения, instructions и отключённые Tasks.
 Advertised input schemas строго проверяет server middleware до вызова tool.
 Встроенная strict validation FastMCP/MCP SDK отключена намеренно: её сообщение
 может отразить весь invalid payload. Middleware возвращает вместо этого
