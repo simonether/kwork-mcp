@@ -32,7 +32,7 @@ Windows не поддерживается.
 Запустите в обычном терминале:
 
 ```bash
-uvx --from kwork-mcp==1.1.0 kwork-mcp-bootstrap
+uvx --from kwork-mcp==1.2.0 kwork-mcp-bootstrap
 ```
 
 Команда скрыто спросит логин и пароль Kwork, а также, по желанию, последние 4 цифры
@@ -57,7 +57,7 @@ claude mcp add kwork --scope user \
   -e KWORK_EXPECTED_USER_ID=123456 \
   -e KWORK_PERSIST_TOKEN=true \
   -e KWORK_ENABLE_WRITES=false \
-  -- uvx --from kwork-mcp==1.1.0 kwork-mcp
+  -- uvx --from kwork-mcp==1.2.0 kwork-mcp
 ```
 
 <details>
@@ -70,7 +70,7 @@ Settings → Developer → Edit Config, в `claude_desktop_config.json`:
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["--from", "kwork-mcp==1.1.0", "kwork-mcp"],
+      "args": ["--from", "kwork-mcp==1.2.0", "kwork-mcp"],
       "env": {
         "KWORK_EXPECTED_USER_ID": "123456",
         "KWORK_PERSIST_TOKEN": "true",
@@ -99,7 +99,7 @@ Settings → Developer → Edit Config, в `claude_desktop_config.json`:
 ```toml
 [mcp_servers.kwork]
 command = "uvx"
-args = ["--from", "kwork-mcp==1.1.0", "kwork-mcp"]
+args = ["--from", "kwork-mcp==1.2.0", "kwork-mcp"]
 
 [mcp_servers.kwork.env]
 KWORK_EXPECTED_USER_ID = "123456"
@@ -128,7 +128,7 @@ claude mcp add kwork --scope user \
   -e KWORK_EXPECTED_USER_ID=123456 \
   -e KWORK_PERSIST_TOKEN=true \
   -e KWORK_ENABLE_WRITES=true \
-  -- uvx --from kwork-mcp==1.1.0 kwork-mcp
+  -- uvx --from kwork-mcp==1.2.0 kwork-mcp
 ```
 
 Каждая запись идёт в два шага. Сначала агент готовит точный запрос (текст, цену,
@@ -139,6 +139,26 @@ claude mcp add kwork --scope user \
 агент сверяет его с Kwork, прежде чем делать что-то ещё. Пока такая запись не
 сверена, новые отправки для аккаунта заблокированы, чтобы не создать дубль.
 
+## kwork.com
+
+По умолчанию сервер работает с kwork.ru. Для kwork.com добавьте в конфиг клиента
+`KWORK_SITE=com`. Например, для Claude Code вторым сервером рядом с kwork.ru:
+
+```bash
+claude mcp add kwork-com --scope user \
+  -e KWORK_EXPECTED_USER_ID=123456 \
+  -e KWORK_PERSIST_TOKEN=true \
+  -e KWORK_ENABLE_WRITES=false \
+  -e KWORK_SITE=com \
+  -- uvx --from kwork-mcp==1.2.0 kwork-mcp
+```
+
+Аккаунт и токен у kwork.ru и kwork.com общие, поэтому заново входить через
+`kwork-mcp-bootstrap` не нужно. Биржи проектов на kwork.com нет: поиск проектов,
+избранные категории и отклик на проект там отвечают `site_unsupported`. Диалоги,
+заказы и кворки работают как обычно, но заказы у каждого сайта свои. Запись,
+подготовленную для одного сайта, отправляет и сверяет только сервер того же сайта.
+
 ## Если что-то не работает
 
 | Что видите | Что делать |
@@ -148,7 +168,7 @@ claude mcp add kwork --scope user \
 | `captcha` | Войдите в Kwork в браузере, пройдите капчу, затем повторите `kwork-mcp-bootstrap` |
 | Claude Desktop не видит сервер | Укажите полный путь к `uvx` (`which uvx`) и перезапустите приложение |
 | `ambiguous_write` с `related_write_id` | Отправка с неизвестным результатом блокирует новые. Попросите агента выполнить `reconcile_write` для этого ID |
-| Сверка долго не сходится | Проверьте операцию на сайте Kwork и зафиксируйте исход вручную (команды ниже) |
+| Сверка долго не сходится | Проверьте операцию на сайте Kwork, указанном в поле `site` у `pending-writes`, и зафиксируйте исход вручную (команды ниже) |
 
 Ручная фиксация исхода запускается с теми же `KWORK_*` переменными, что у сервера:
 

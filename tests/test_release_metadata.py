@@ -16,12 +16,14 @@ def test_registry_metadata_advertises_only_safe_server_environment() -> None:
     variables = package["environmentVariables"]
     by_name = {item["name"]: item for item in variables}
 
-    assert len(variables) == len(by_name) == 24
+    assert len(variables) == len(by_name) == 25
     assert set(by_name).isdisjoint(SERVER_SECRET_ENV_NAMES)
     assert all(item["isSecret"] is False for item in variables)
     assert by_name["KWORK_EXPECTED_USER_ID"]["isRequired"] is True
     assert by_name["KWORK_PERSIST_TOKEN"]["default"] == "true"
     assert by_name["KWORK_AUTH_LOCK_TIMEOUT"]["default"] == "90"
+    assert by_name["KWORK_SITE"]["default"] == "ru"
+    assert by_name["KWORK_SITE"]["choices"] == ["ru", "com"]
 
 
 def test_example_environment_has_no_active_secret_assignment() -> None:
@@ -43,7 +45,7 @@ def test_versions_and_console_entrypoints_are_consistent() -> None:
     registry = json.loads((ROOT / "server.json").read_text())
 
     assert project["dynamic"] == ["version"]
-    assert registry["version"] == __version__ == "1.1.0"
+    assert registry["version"] == __version__ == "1.2.0"
     assert registry["packages"][0]["version"] == __version__
     assert project["scripts"] == {
         "kwork-mcp": "kwork_mcp:main",
