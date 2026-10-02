@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from kwork_mcp.coordination import StoredWrite
 from kwork_mcp.errors import AmbiguousWriteError, ContractDriftError, GatewayError
-from kwork_mcp.gateway.parsing import _epoch_seconds, _normalize_remote_text
+from kwork_mcp.gateway.parsing import _epoch_seconds, _normalize_offer_text, _normalize_remote_text
 from kwork_mcp.gateway.reads import ReadOperations
 from kwork_mcp.models import (
     DialogRecord,
@@ -136,7 +136,7 @@ class ReadBackLookups(ReadOperations):
         def normalized_text(value: Any) -> Any:
             if not isinstance(value, str):
                 return value
-            return _normalize_remote_text(value)
+            return _normalize_offer_text(value)
 
         expected = (
             (normalized_text(offer.title), normalized_text(request.get("title"))),

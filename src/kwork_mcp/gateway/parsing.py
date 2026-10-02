@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import html
 import json
 import math
+import re
 import unicodedata
 from datetime import UTC, datetime
 from typing import Any
@@ -86,6 +88,19 @@ def _optional_scalar(value: Any) -> str | int | None:
 
 def _normalize_remote_text(value: str) -> str:
     return unicodedata.normalize("NFC", value).replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+_BLANK_LINES = re.compile(r"\n[ \t]*(?:\n[ \t]*)+")
+
+
+def _normalize_offer_text(value: str) -> str:
+    """Compare offer text the way Kwork stores it.
+
+    Kwork keeps an offer's title and description HTML-escaped (quotes as
+    &laquo;/&raquo;) and collapses blank lines, so the exact sent text never
+    reads back verbatim.
+    """
+    return _BLANK_LINES.sub("\n", _normalize_remote_text(html.unescape(value)))
 
 
 def _epoch_seconds(value: int | str | None) -> float | None:
