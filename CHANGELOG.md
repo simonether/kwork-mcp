@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-02
+
 ### Changed
 
 - Строка `tool_failure` в логе содержит `diagnostic` (до 200 символов, секреты
@@ -201,7 +203,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.3.0
 [1.2.1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.1
 [1.2.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.1.0
