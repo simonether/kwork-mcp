@@ -1,0 +1,16 @@
+{
+  "name": "kwork-mcp: MCP-сервер для Kwork",
+  "short_name": "kwork-mcp",
+  "description": "Аккаунт Kwork в Claude Code, Codex и Cursor. Отправка только после вашего подтверждения.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "browser",
+  "background_color": "#edf1ec",
+  "theme_color": "#12222b",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
