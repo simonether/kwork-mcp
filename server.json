@@ -3,7 +3,7 @@
   "name": "io.github.simonether/kwork-mcp",
   "title": "Kwork",
   "description": "Account-bound, typed and durable stdio MCP gateway for the Kwork freelance marketplace",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "websiteUrl": "https://github.com/simonether/kwork-mcp",
   "repository": {
     "url": "https://github.com/simonether/kwork-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "kwork-mcp",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
@@ -37,6 +37,14 @@
           "isRequired": false,
           "isSecret": false,
           "default": "false"
+        },
+        {
+          "name": "KWORK_SITE",
+          "description": "Kwork site: ru (kwork.ru) or com (kwork.com); kwork.com has no project exchange",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "ru",
+          "choices": ["ru", "com"]
         },
         {
           "name": "KWORK_TIMEOUT",

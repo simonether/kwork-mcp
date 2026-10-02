@@ -5,12 +5,16 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-02
+
 ### Added
 
 - `KWORK_SITE=ru|com` (по умолчанию `ru`) для работы с kwork.com: API, web-flow и
   allowlist web-хостов берутся из выбранного сайта. Спасибо
   [@4irik](https://github.com/4irik).
 - `account_status.site` и коды ошибок `site_unsupported` / `site_mismatch`.
+- `KWORK_SITE` в метаданных MCP Registry (`server.json`) и в `.env.example`.
+- Раздел про kwork.com в README.
 
 ### Changed
 
@@ -18,6 +22,8 @@
   отклоняются локально: биржи проектов там нет.
 - Запись подтверждается и сверяется только на сайте, для которого её подготовили.
 - `kwork-mcp-bootstrap` выводит `KWORK_SITE`, если сайт не `ru`.
+- `pending-writes` и `resolve-write` показывают сайт записи, а `resolve-write`
+  называет его в просьбе проверить операцию.
 
 ## [1.1.0] - 2026-09-29
 
@@ -159,7 +165,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.0.0
 [1.0.0rc1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.0.0rc1
