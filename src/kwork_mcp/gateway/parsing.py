@@ -10,7 +10,7 @@ import math
 import re
 import unicodedata
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from kwork.exceptions import KworkHTTPException
 from pydantic import JsonValue
@@ -93,6 +93,11 @@ def _normalize_remote_text(value: str) -> str:
 _BLANK_LINES = re.compile(r"\n[ \t]*(?:\n[ \t]*)+")
 
 
+def _normalize_message_text(value: str) -> str:
+    """Compare message text the way Kwork stores it: HTML-escaped (`"` reads back as &quot;)."""
+    return _normalize_remote_text(html.unescape(value))
+
+
 def _normalize_offer_text(value: str) -> str:
     """Compare offer text the way Kwork stores it.
 
@@ -100,7 +105,7 @@ def _normalize_offer_text(value: str) -> str:
     &laquo;/&raquo;) and collapses blank lines, so the exact sent text never
     reads back verbatim.
     """
-    return _BLANK_LINES.sub("\n", _normalize_remote_text(html.unescape(value)))
+    return _BLANK_LINES.sub("\n", _normalize_message_text(value))
 
 
 def _epoch_seconds(value: int | str | None) -> float | None:
@@ -163,17 +168,26 @@ def _strict_paging(
     data: dict[str, Any],
     route: str,
     *,
-    requested_page: int,
+    requested_page: int | None,
     item_count: int,
+    partial_page: Literal["last", "first"] = "last",
 ) -> tuple[int, int | None, int | None, int]:
+    """Validate Kwork paging metadata against the items actually returned.
+
+    ``requested_page=None`` accepts the page Kwork chose, which must then be the
+    last one. ``partial_page="first"`` is for routes that fill pages from the
+    newest end, so only page 1 (the oldest) may be short.
+    """
     paging = data.get("paging")
     if not isinstance(paging, dict) or not paging:
         raise ContractDriftError(f"{route}:missing_paging")
     page_value = paging.get("page")
     if isinstance(page_value, bool) or not isinstance(page_value, int) or page_value < 1:
         raise ContractDriftError(f"{route}:paging_page_invalid")
-    if page_value != requested_page:
+    if requested_page is not None and page_value != requested_page:
         raise ContractDriftError(f"{route}:paging_page_mismatch")
+    latest_requested = requested_page is None
+    requested_page = page_value
 
     def optional_exact_int(name: str, *, minimum: int) -> int | None:
         if name not in paging:
@@ -193,6 +207,8 @@ def _strict_paging(
         raise ContractDriftError(f"{route}:paging_pages_inconsistent")
     if pages is None:
         raise ContractDriftError(f"{route}:paging_incomplete")
+    if latest_requested and pages > 0 and page_value != pages:
+        raise ContractDriftError(f"{route}:paging_latest_page_mismatch")
     if pages == 0:
         if requested_page != 1 or item_count != 0 or total not in {None, 0}:
             raise ContractDriftError(f"{route}:paging_empty_inconsistent")
@@ -205,7 +221,10 @@ def _strict_paging(
     if pages > 0 and requested_page < pages and item_count == 0:
         raise ContractDriftError(f"{route}:paging_premature_empty_page")
     if total is not None and limit is not None and pages > 0:
-        expected_count = min(limit, max(0, total - (requested_page - 1) * limit))
+        if partial_page == "first":
+            expected_count = total - (pages - 1) * limit if requested_page == 1 else limit
+        else:
+            expected_count = min(limit, max(0, total - (requested_page - 1) * limit))
         if item_count != expected_count:
             raise ContractDriftError(f"{route}:paging_item_count_inconsistent")
     elif total is not None and total > 0 and item_count == 0:

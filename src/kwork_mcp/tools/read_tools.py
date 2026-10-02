@@ -383,9 +383,14 @@ def register(mcp: FastMCP) -> None:
             StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
         ],
         ctx: Context,
-        page: Annotated[int, Field(ge=1, le=10_000)] = 1,
+        page: Annotated[int, Field(ge=1, le=10_000)] | None = None,
     ) -> ToolResult:
-        """Получить полные сообщения диалога по username и странице."""
+        """Получить полные сообщения диалога по username.
+
+        Без page возвращается последняя страница с самыми свежими сообщениями.
+        Страницы нумеруются от начала переписки: более ранние сообщения лежат на
+        page на единицу меньше, page=1 — самое начало.
+        """
         correlation = correlation_id()
         try:
             data = await gateway_from_context(ctx).get_dialog(username.lstrip("@"), page)

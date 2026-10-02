@@ -290,7 +290,7 @@ class ReadMatrixClient:
                     "time": 1000,
                 }
             ],
-            "paging": {"page": params["page"], "limit": 20, "total": 1, "pages": 1},
+            "paging": {"page": params.get("page", 1), "limit": 20, "total": 1, "pages": 1},
         }
 
     async def kworks_status_list(self, *, use_token: bool, **params: Any) -> dict[str, Any]:
@@ -744,6 +744,29 @@ class MessageReadbackGateway(KworkGateway):
         page: int = 1,
     ) -> ItemCollection[MessageRecord]:
         return ItemCollection[MessageRecord](items=self.messages)
+
+
+@pytest.mark.asyncio
+async def test_sent_message_with_an_ascii_quote_is_found_in_its_escaped_form(
+    config_factory: Callable[..., KworkConfig],
+) -> None:
+    now = time.time()
+    config = config_factory(expected_user_id=42)
+    gateway = MessageReadbackGateway(
+        config,
+        CoordinationStore(config),
+        [MessageRecord(message_id=3, sender_id=42, text="Ответ &quot;да&quot;", created_at=int(now), raw={"id": 3})],
+    )
+
+    matches = await gateway._matching_sent_messages(
+        username="recipient",
+        text='Ответ "да"',
+        sender_id=42,
+        prepared_at=now,
+        unknown_at=now,
+    )
+
+    assert [message.message_id for message in matches] == [3]
 
 
 @pytest.mark.asyncio

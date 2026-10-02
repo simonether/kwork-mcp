@@ -93,6 +93,11 @@ docs/               architecture, configuration, security, migration and release
 - Kwork stores an offer's title and description HTML-escaped (`&laquo;`/`&raquo;`) with blank lines
   collapsed; compare offers with `_normalize_offer_text`. The createoffer response may carry no offer
   ID, so commit falls back to read-back.
+- Messages read back HTML-escaped too (`"` as `&quot;`), but keep blank lines and `«»`; compare them
+  with `_normalize_message_text`.
+- `inboxes` numbers dialog pages from the oldest message and fills them from the newest end: the last
+  page holds the latest messages, only page 1 may be short, and a call without `page` returns the last
+  page.
 
 ## Boundaries
 

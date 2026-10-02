@@ -688,15 +688,23 @@ class ReadOperations(GatewayBase):
     async def get_dialog(
         self,
         username: str,
-        page: int = 1,
+        page: int | None = None,
     ) -> ItemCollection[MessageRecord]:
+        """Read one page of a dialog; ``page=None`` is the newest page.
+
+        Kwork numbers dialog pages from the oldest messages and fills them from
+        the newest end: the last page holds the latest messages and only page 1
+        may be short.
+        """
         username = username.lstrip("@").strip()
         if not username:
             raise GatewayError(
                 ErrorCode.VALIDATION,
                 diagnostic="username_empty_after_normalization",
             )
-        params: dict[str, Any] = {"username": username, "page": page}
+        params: dict[str, Any] = {"username": username}
+        if page is not None:
+            params["page"] = page
         enforce_route_params("inboxes", params)
         data = await self.session.call_read(
             "dialog-messages",
@@ -729,6 +737,7 @@ class ReadOperations(GatewayBase):
             "inboxes",
             requested_page=page,
             item_count=len(items),
+            partial_page="first",
         )
         return ItemCollection[MessageRecord](
             items=items,
