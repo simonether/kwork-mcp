@@ -41,6 +41,7 @@ src/kwork_mcp/
   tools/            read_tools.py, write_tools.py, common.py (envelope helpers, annotations)
 tests/              pytest suite; test_live_contracts.py holds anonymized live response shapes
 docs/               architecture, configuration, security, migration and release notes (Russian)
+site/               GitHub Pages landing page (Russian), deployed by .github/workflows/pages.yml
 ```
 
 ## Architecture
