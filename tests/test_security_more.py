@@ -977,3 +977,36 @@ def test_configure_logging_redacts_configured_values(
     logger.remove()
     logger.configure(patcher=None)
     logger.add(sys.__stderr__)
+
+
+def test_tool_failure_logs_a_bounded_redacted_diagnostic(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from kwork_mcp.errors import GatewayError
+    from kwork_mcp.models import ErrorCode, ResultEnvelope
+    from kwork_mcp.tools.common import failure
+
+    configure_logging(KworkConfig(token="diagnostic-log-token", state_dir=tmp_path))
+    try:
+        failure(
+            ResultEnvelope[dict[str, str]],
+            error=GatewayError(
+                ErrorCode.AUTH_EXPIRED,
+                diagnostic="web_login_status=404;token=diagnostic-log-token\x1b[31m" + "x" * 500,
+            ),
+            correlation="corr-1",
+        )
+        failure(ResultEnvelope[dict[str, str]], error=GatewayError(ErrorCode.TIMEOUT), correlation="corr-2")
+    finally:
+        from loguru import logger
+
+        logger.remove()
+        logger.configure(patcher=None)
+
+    output = capsys.readouterr().err
+    assert "code=auth_expired diagnostic=web_login_status=404;token=<redacted>?[31m" in output
+    assert "diagnostic-log-token" not in output
+    assert "\x1b" not in output
+    assert "x" * 200 not in output
+    assert "correlation_id=corr-2 code=timeout diagnostic=-" in output
