@@ -66,9 +66,7 @@ class WriteProtocol(OfferSubmission):
     def _require_prepared_site(self, record: StoredWrite) -> None:
         """A write commits and reconciles only against the site it was prepared for."""
 
-        payload = json.loads(record.payload_json)
-        # Writes prepared before KWORK_SITE existed always targeted kwork.ru.
-        prepared_site = payload.get("prepared_site", "ru") if isinstance(payload, dict) else "ru"
+        prepared_site = record.prepared_site
         if prepared_site != self.config.site:
             raise GatewayError(
                 ErrorCode.SITE_MISMATCH,

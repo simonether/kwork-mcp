@@ -150,7 +150,8 @@ KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap pending-writes
 KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent
 ```
 
-`pending-writes` печатает JSON в stdout. `resolve-write` работает только в
+`pending-writes` печатает JSON в stdout; поле `site` у каждой записи говорит, на
+kwork.ru или kwork.com искать операцию. `resolve-write` работает только в
 интерактивном TTY, показывает запись и требует явного ввода «да»; разрешить можно
 только `submission_unknown`. Команды открывают тот же state DB, поэтому запускайте
 их с теми же `KWORK_EXPECTED_USER_ID`, `KWORK_STATE_DIR` и policy-переменными

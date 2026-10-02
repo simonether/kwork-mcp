@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from kwork_mcp.bootstrap import run_bootstrap_cli
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.errors import ContractDriftError, GatewayError
 from kwork_mcp.models import ErrorCode, KworkRecord, SetKworkStateRequest, WriteAction, WriteState
@@ -19,7 +21,9 @@ from tests.test_write_safety import (
     SafetyGateway,
     SafetySession,
     TimeoutGateway,
+    TTYBuffer,
     _offer,
+    _operator_environment,
     _prepare_and_commit,
     _record,
     _writes_config,
@@ -193,6 +197,37 @@ async def test_unknown_write_is_reconciled_only_on_its_own_site(config_factory: 
     status = await TimeoutGateway(ru_config).get_write_status(unknown.write_id, correlation_id="status")
     assert status is not None
     assert status.state is WriteState.SUBMISSION_UNKNOWN
+
+
+@pytest.mark.asyncio
+async def test_operator_commands_name_the_site_of_a_write(
+    config_factory: Callable[..., KworkConfig],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    com_config = _on_site(_writes_config(config_factory), "com")
+    gateway = TimeoutGateway(com_config)
+    gateway.kworks = [KworkRecord(kwork_id=7, status_group_id=3, status_group_name="Остановленные", raw={"id": 7})]
+    request = SetKworkStateRequest(action=WriteAction.SET_KWORK_STATE, kwork_id=7, target_state="active")
+    unknown = await _prepare_and_commit(gateway, request, "com-unknown")
+    assert unknown.state is WriteState.SUBMISSION_UNKNOWN
+    # The operator runs with the default site; the record still says where to look.
+    _operator_environment(monkeypatch, com_config)
+    monkeypatch.delenv("KWORK_SITE", raising=False)
+
+    code = await run_bootstrap_cli(
+        ["pending-writes"], stdin=TTYBuffer(), stdout=(listed := io.StringIO()), stderr=TTYBuffer()
+    )
+    assert code == 0
+    assert json.loads(listed.getvalue())["writes"][0]["site"] == "com"
+
+    code = await run_bootstrap_cli(
+        ["resolve-write", unknown.write_id, "absent"],
+        stdin=TTYBuffer("нет\n"),
+        stdout=io.StringIO(),
+        stderr=(prompt := TTYBuffer()),
+    )
+    assert code == 1
+    assert "Убедитесь на kwork.com" in prompt.getvalue()
 
 
 @pytest.mark.parametrize(("site", "accepted"), [("ru", True), ("com", False)])
