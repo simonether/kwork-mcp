@@ -72,7 +72,7 @@ class FakeClient:
         return outcome
 
     async def web_login(self, *, url_to_redirect: str) -> object:
-        assert url_to_redirect == "/exchange"
+        assert url_to_redirect == "/projects"
         if isinstance(self.web_result, BaseException):
             raise self.web_result
         return self.web_result

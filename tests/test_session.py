@@ -48,7 +48,7 @@ class FakeClient:
         self.closed = True
 
     async def web_login(self, *, url_to_redirect: str) -> SimpleNamespace:
-        assert url_to_redirect == "/exchange"
+        assert url_to_redirect == "/projects"
         return SimpleNamespace(status=self.web_status)
 
 
@@ -349,6 +349,28 @@ async def test_web_login_status_and_unbound_identity_fail_closed(
     with pytest.raises(GatewayError) as binding_error:
         await session.verify_account_identity()
     assert binding_error.value.code is ErrorCode.ACCOUNT_BINDING_REQUIRED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [404, 410])
+async def test_missing_web_login_landing_page_is_contract_drift_not_expired_auth(
+    config_factory: Callable[..., KworkConfig],
+    status: int,
+) -> None:
+    # Live 2026-10-02: the token login succeeded, but kwork.ru/exchange answered 404.
+    config = config_factory()
+    client = FakeClient([Actor(id=42, username="fixture")], web_status=status)
+    session = KworkSessionManager(
+        config,
+        CoordinationStore(config),
+        client_factory=lambda _: client,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(GatewayError) as caught:
+        await session.ensure_web_client()
+
+    assert caught.value.code is ErrorCode.CONTRACT_DRIFT
+    assert caught.value.diagnostic == f"web_login_landing_status={status}"
 
 
 @pytest.mark.asyncio

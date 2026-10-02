@@ -21,7 +21,7 @@ from kwork_mcp.config import (
     proxy_redaction_secrets,
 )
 from kwork_mcp.coordination import CoordinationStore
-from kwork_mcp.errors import GatewayError, classify_upstream_error, is_auth_error
+from kwork_mcp.errors import ContractDriftError, GatewayError, classify_upstream_error, is_auth_error
 from kwork_mcp.models import ErrorCode
 from kwork_mcp.security import (
     SecureTokenStore,
@@ -678,6 +678,10 @@ class KworkSessionManager:
                     await self.coordinator.acquire(self.scope, route)
                     try:
                         result = await client.web_login(url_to_redirect=self.config.web_login_redirect)
+                        if result.status in {404, 410}:
+                            # The token login went through but its landing page is
+                            # gone: a site change, not an expired session.
+                            raise ContractDriftError(f"web_login_landing_status={result.status}")
                         if result.status is None or not 200 <= result.status < 400:
                             raise GatewayError(
                                 ErrorCode.AUTH_EXPIRED,

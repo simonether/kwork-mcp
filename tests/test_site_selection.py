@@ -35,7 +35,7 @@ def test_default_site_is_ru(config_factory: Callable[..., KworkConfig]) -> None:
     assert config.site == "ru"
     assert config.api_host == "https://api.kwork.ru/{}"
     assert config.web_base_url == "https://kwork.ru/"
-    assert config.web_login_redirect == "/exchange"
+    assert config.web_login_redirect == "/projects"
 
 
 def test_com_site_derives_com_hosts(config_factory: Callable[..., KworkConfig]) -> None:
