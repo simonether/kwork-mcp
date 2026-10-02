@@ -103,6 +103,16 @@ def success(
     return tool_result(envelope)
 
 
+def _loggable_diagnostic(diagnostic: str | None) -> str:
+    """Diagnostics are internal identifiers; still keep control characters and bulk out of logs.
+
+    Secrets are redacted afterwards by the logging patcher like any other message.
+    """
+    if not diagnostic:
+        return "-"
+    return "".join(char if char.isprintable() else "?" for char in diagnostic[:200])
+
+
 def failure(
     model: type[ResultEnvelope[Any]],
     *,
@@ -110,7 +120,12 @@ def failure(
     correlation: str,
     data: Any = None,
 ) -> ToolResult:
-    logger.warning("tool_failure correlation_id={} code={}", correlation, error.code.value)
+    logger.warning(
+        "tool_failure correlation_id={} code={} diagnostic={}",
+        correlation,
+        error.code.value,
+        _loggable_diagnostic(error.diagnostic),
+    )
     envelope = model.model_validate(
         {
             "knowledge_state": KnowledgeState.UNKNOWN_ERROR,

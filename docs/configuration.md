@@ -182,7 +182,10 @@ secret env полностью.
 - один state directory для разных OS users.
 
 Bootstrap prompts идут в stderr, success — один allowlisted JSON object в stdout.
-Логи MCP идут только в stderr. Runtime token, proxy password, full proxy
+Логи MCP идут только в stderr. Ошибка инструмента пишется строкой `tool_failure` с
+`correlation_id`, кодом и внутренней диагностикой (`diagnostic`, до 200 символов, без
+управляющих символов): по ней видно, на каком шаге и почему упал вызов. В ответ агенту
+диагностика не попадает. Runtime token, proxy password, full proxy
 URL/authority и userinfo динамически добавляются в redaction set для логов и
 внешних payload; отдельные proxy user/host fragments — только от 8 символов
 (`MIN_DISTINCTIVE_SECRET_LENGTH`), чтобы короткое `user` не портило обычные данные.
