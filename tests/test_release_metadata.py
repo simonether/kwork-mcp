@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -51,6 +52,15 @@ def test_versions_and_console_entrypoints_are_consistent() -> None:
         "kwork-mcp": "kwork_mcp:main",
         "kwork-mcp-bootstrap": "kwork_mcp.bootstrap:main",
     }
+
+
+def test_install_instructions_pin_the_current_version() -> None:
+    for name in ("README.md", "site/index.html"):
+        text = (ROOT / name).read_text()
+        assert set(re.findall(r"kwork-mcp==([0-9A-Za-z.]+)", text)) == {__version__}, name
+
+    site = (ROOT / "site" / "index.html").read_text()
+    assert f'"softwareVersion": "{__version__}"' in site
 
 
 def test_release_workflow_fails_closed_for_prerelease_registry_publish() -> None:

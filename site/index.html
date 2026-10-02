@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kwork-mcp: MCP-сервер для Kwork в Claude Code, Codex и Cursor</title>
+<meta name="description" content="Подключите аккаунт Kwork к ИИ-агенту: поиск проектов на бирже, диалоги, заказы и отклики из Claude Code, Codex и Cursor. Открытый код, отправка только после вашего подтверждения.">
+<link rel="canonical" href="https://simonether.github.io/kwork-mcp/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0c0b10">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:site_name" content="kwork-mcp">
+<meta property="og:title" content="kwork-mcp: MCP-сервер для Kwork">
+<meta property="og:description" content="Аккаунт Kwork в Claude Code, Codex и Cursor: биржа, диалоги, заказы и отклики. Отправка только после вашего «да».">
+<meta property="og:url" content="https://simonether.github.io/kwork-mcp/">
+<meta property="og:image" content="https://simonether.github.io/kwork-mcp/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "kwork-mcp",
+  "description": "MCP-сервер, который подключает аккаунт Kwork к ИИ-агентам: Claude Code, Claude Desktop, Codex и Cursor.",
+  "url": "https://simonether.github.io/kwork-mcp/",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux",
+  "softwareVersion": "1.3.0",
+  "inLanguage": "ru",
+  "license": "https://opensource.org/licenses/MIT",
+  "downloadUrl": "https://pypi.org/project/kwork-mcp/",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "RUB"},
+  "author": {"@type": "Person", "name": "Simon Sudarushkin", "url": "https://github.com/simonether"},
+  "sameAs": ["https://github.com/simonether/kwork-mcp", "https://pypi.org/project/kwork-mcp/"]
+}
+</script>
+<style>
+:root {
+  --bg: #0c0b10;
+  --surface: #14121b;
+  --surface-2: #1a1724;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #ece9f2;
+  --muted: #a39fb0;
+  --link: #c79bff;
+  --accent-1: #e040fb;
+  --accent-2: #536dfe;
+  --code-bg: #0f0d15;
+  --code-text: #e6e1f0;
+  --glow: rgba(224, 64, 251, 0.10);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fbfaff;
+    --surface: #ffffff;
+    --surface-2: #f4f1fa;
+    --border: #e6e2ef;
+    --text: #17141f;
+    --muted: #5c5869;
+    --link: #6a3df5;
+    --code-bg: #17141f;
+    --code-text: #ece9f2;
+    --glow: rgba(224, 64, 251, 0.07);
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+a { color: var(--link); text-underline-offset: 3px; }
+code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+:not(pre) > code {
+  font-size: 0.88em;
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+header.top {
+  border-bottom: 1px solid var(--border);
+}
+header.top .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 60px;
+}
+.logo {
+  font: 600 18px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--text);
+  text-decoration: none;
+}
+.logo span {
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+nav.links { display: flex; gap: 18px; font-size: 15px; }
+nav.links a { color: var(--muted); text-decoration: none; }
+nav.links a:hover { color: var(--text); }
+.hero {
+  padding: 72px 0 56px;
+  background: radial-gradient(60% 80% at 75% 20%, var(--glow), transparent 70%);
+}
+.eyebrow {
+  margin: 0 0 14px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+h1 {
+  margin: 0 0 18px;
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.nw { white-space: nowrap; }
+h1 .grad {
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lead { max-width: 700px; margin: 0 0 28px; font-size: 19px; color: var(--muted); }
+.lead strong { color: var(--text); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface);
+}
+.btn.primary {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(90deg, #b62fd6, #4a5ee8);
+}
+.btn:hover { filter: brightness(1.08); }
+.facts { margin: 0; font-size: 14px; color: var(--muted); }
+section { padding: 56px 0; border-top: 1px solid var(--border); }
+h2 { margin: 0 0 12px; font-size: clamp(24px, 4vw, 32px); line-height: 1.2; letter-spacing: -0.01em; }
+h3 { margin: 0 0 8px; font-size: 18px; line-height: 1.3; }
+.section-lead { margin: 0 0 28px; max-width: 700px; color: var(--muted); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card {
+  padding: 20px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.card p { margin: 0; color: var(--muted); font-size: 16px; }
+.ask {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-1);
+  font-size: 16px;
+}
+.asks { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.code {
+  position: relative;
+  margin: 12px 0 20px;
+}
+.code pre {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+.copy {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e6e1f0;
+  font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer;
+}
+.copy:hover { background: rgba(255, 255, 255, 0.12); }
+.code.has-copy pre { padding-top: 50px; }
+ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+ol.steps > li { position: relative; padding-left: 48px; margin-bottom: 28px; counter-increment: step; }
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+}
+ol.steps p { margin: 0 0 8px; }
+details {
+  margin: 10px 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+details > summary {
+  cursor: pointer;
+  padding: 14px 18px;
+  font-weight: 600;
+  list-style-position: inside;
+}
+details > div { padding: 0 18px 4px; }
+details > div > p { margin: 0 0 14px; color: var(--muted); }
+.tools { display: grid; gap: 10px 24px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin: 0; }
+.tools div { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.tools dt { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; overflow-wrap: anywhere; }
+.tools dd { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
+.note {
+  margin: 24px 0 0;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 16px;
+}
+.faq details > div > p { color: var(--muted); }
+footer {
+  padding: 40px 0 56px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 15px;
+}
+footer .row { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 12px; }
+footer p { margin: 0; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  nav.links { display: none; }
+  .hero { padding: 48px 0 40px; }
+  .lead { font-size: 17px; }
+  section { padding: 44px 0; }
+  ol.steps > li { padding-left: 0; padding-top: 44px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./"><span>kwork-mcp</span></a>
+    <nav class="links" aria-label="Разделы">
+      <a href="#start">Быстрый старт</a>
+      <a href="#tools">Инструменты</a>
+      <a href="#faq">Вопросы</a>
+      <a href="https://github.com/simonether/kwork-mcp">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<div class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Открытый код · MIT · kwork.ru и kwork.com</p>
+    <h1>kwork-mcp: <span class="grad"><span class="nw">MCP-сервер</span> для&nbsp;Kwork</span></h1>
+    <p class="lead">Подключает ваш аккаунт Kwork к ИИ-агенту: Claude Code, Claude Desktop, Codex,
+      Cursor и другим MCP-клиентам. Агент ищет проекты на бирже, читает диалоги, заказы и офферы,
+      готовит отклики. <strong>Отправить что-то на Kwork он может, только если вы включили запись,
+      и только после вашего подтверждения.</strong></p>
+    <div class="actions">
+      <a class="btn primary" href="#start">Быстрый старт</a>
+      <a class="btn" href="https://github.com/simonether/kwork-mcp">Код на GitHub</a>
+      <a class="btn" href="https://pypi.org/project/kwork-mcp/">PyPI</a>
+    </div>
+    <p class="facts">macOS и Linux · Python 3.12–3.14 · 22 инструмента</p>
+  </div>
+</div>
+
+<section id="examples">
+  <div class="wrap">
+    <h2>Что можно попросить у агента</h2>
+    <p class="section-lead">Обычными словами, в том клиенте, где вы и так работаете.</p>
+    <div class="asks">
+      <p class="ask">«Найди свежие проекты про Telegram-ботов с бюджетом от 20&nbsp;000&nbsp;₽ и скажи, какие мне подходят»</p>
+      <p class="ask">«Покажи диалоги с непрочитанными сообщениями и предложи ответы»</p>
+      <p class="ask">«Что с моими заказами? Где что-то ждёт моих действий?»</p>
+      <p class="ask">«Сколько у меня коннектов и какие мои отклики ещё висят?»</p>
+      <p class="ask">«Подготовь отклик на проект 3257238: 15&nbsp;000&nbsp;₽, 5&nbsp;дней». Агент покажет точный текст и цену и отправит только после вашего «да»</p>
+    </div>
+  </div>
+</section>
+
+<section id="safety">
+  <div class="wrap">
+    <h2>Почему агенту можно доверить аккаунт</h2>
+    <p class="section-lead">Отклик тратит коннект, а сообщение клиент видит сразу. Поэтому сервер устроен так,
+      чтобы агент не мог ни отправить лишнего, ни отправить дважды.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>По умолчанию только чтение</h3>
+        <p>Пока в конфиге стоит <code>KWORK_ENABLE_WRITES=false</code>, агент ничего не отправляет на Kwork.</p>
+      </div>
+      <div class="card">
+        <h3>Запись в два шага</h3>
+        <p>Агент готовит точный запрос: текст, цену, получателя. На Kwork запрос уходит только после вашего подтверждения.</p>
+      </div>
+      <div class="card">
+        <h3>Без дублей</h3>
+        <p>Сервер помнит каждую запись и никогда не повторяет её сам. Если связь оборвалась в момент отправки, агент сначала сверяет результат с Kwork, а новые отправки ждут.</p>
+      </div>
+      <div class="card">
+        <h3>Пароль не попадает в конфиг</h3>
+        <p>Логин и пароль вводятся один раз через скрытый ввод и нигде не сохраняются. Токен лежит на вашем компьютере в файлах с правами <code>0600</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Только ваш аккаунт</h3>
+        <p>Сервер работает с аккаунтом из <code>KWORK_EXPECTED_USER_ID</code> и проверяет его перед каждой записью.</p>
+      </div>
+      <div class="card">
+        <h3>Чужой текст не команда</h3>
+        <p>Тексты проектов, профилей и сообщений помечаются как внешние данные, а не инструкции для агента.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <h2>Быстрый старт</h2>
+    <p class="section-lead">Нужны macOS или Linux, Python 3.12–3.14 и <a href="https://docs.astral.sh/uv/">uv</a>. Windows не поддерживается.</p>
+    <ol class="steps">
+      <li>
+        <h3>Войдите в Kwork (один раз)</h3>
+        <p>Запустите в обычном терминале:</p>
+        <div class="code"><pre><code>uvx --from kwork-mcp==1.3.0 kwork-mcp-bootstrap</code></pre></div>
+        <p>Команда скрыто спросит логин и пароль Kwork, покажет найденный аккаунт и после подтверждения
+          сохранит токен в <code>~/.local/state/kwork-mcp</code>. В конце она выведет ваш <code>user_id</code>,
+          он нужен на следующем шаге.</p>
+      </li>
+      <li>
+        <h3>Подключите агента</h3>
+        <p>Замените <code>123456</code> на свой <code>user_id</code>. Для Claude Code:</p>
+        <div class="code"><pre><code>claude mcp add kwork --scope user \
+  -e KWORK_EXPECTED_USER_ID=123456 \
+  -e KWORK_PERSIST_TOKEN=true \
+  -e KWORK_ENABLE_WRITES=false \
+  -- uvx --from kwork-mcp==1.3.0 kwork-mcp</code></pre></div>
+        <details>
+          <summary>Codex</summary>
+          <div>
+            <p>В <code>~/.codex/config.toml</code>:</p>
+            <div class="code"><pre><code>[mcp_servers.kwork]
+command = "uvx"
+args = ["--from", "kwork-mcp==1.3.0", "kwork-mcp"]
+
+[mcp_servers.kwork.env]
+KWORK_EXPECTED_USER_ID = "123456"
+KWORK_PERSIST_TOKEN = "true"
+KWORK_ENABLE_WRITES = "false"</code></pre></div>
+          </div>
+        </details>
+        <details>
+          <summary>Claude Desktop и Cursor</summary>
+          <div>
+            <p>Claude Desktop: Settings → Developer → Edit Config, файл <code>claude_desktop_config.json</code>.
+              Cursor: <code>~/.cursor/mcp.json</code> или <code>.cursor/mcp.json</code> проекта.</p>
+            <div class="code"><pre><code>{
+  "mcpServers": {
+    "kwork": {
+      "command": "uvx",
+      "args": ["--from", "kwork-mcp==1.3.0", "kwork-mcp"],
+      "env": {
+        "KWORK_EXPECTED_USER_ID": "123456",
+        "KWORK_PERSIST_TOKEN": "true",
+        "KWORK_ENABLE_WRITES": "false"
+      }
+    }
+  }
+}</code></pre></div>
+            <p>Если Claude Desktop не находит <code>uvx</code>, укажите полный путь из <code>which uvx</code>.</p>
+          </div>
+        </details>
+        <p>Логин, пароль, токен и прокси в конфиг клиента не добавляйте: сервер с ними откажется запускаться.</p>
+      </li>
+      <li>
+        <h3>Проверьте</h3>
+        <p>Перезапустите клиент и попросите агента: «проверь статус аккаунта Kwork». Он покажет ваш
+          <code>user_id</code> и имя.</p>
+      </li>
+    </ol>
+    <p class="note">Чтобы агент мог отправлять отклики и сообщения, замените в конфиге
+      <code>KWORK_ENABLE_WRITES=false</code> на <code>true</code> и перезапустите клиент. Подробности,
+      решение проблем и ручная сверка отправок описаны в
+      <a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="wrap">
+    <h2>Инструменты</h2>
+    <p class="section-lead">18 инструментов чтения и 4 инструмента записи. Результаты типизированы, а пустой
+      ответ всегда отличим от ошибки.</p>
+    <dl class="tools">
+      <div><dt>account_status</dt><dd>Какой аккаунт подключён, включена ли запись, есть ли несверенные отправки</dd></div>
+      <div><dt>get_connects</dt><dd>Баланс коннектов</dd></div>
+      <div><dt>discover_projects, get_project</dt><dd>Проекты биржи: избранные категории, вся биржа или выбранные категории, фильтры по цене и откликам</dd></div>
+      <div><dt>get_exchange_info</dt><dd>Сводка по бирже</dd></div>
+      <div><dt>list_my_offers, get_offer</dt><dd>Ваши отклики</dd></div>
+      <div><dt>list_worker_orders, get_order_details</dt><dd>Ваши заказы как продавца</dd></div>
+      <div><dt>list_dialogs, get_dialog</dt><dd>Диалоги и сообщения</dd></div>
+      <div><dt>list_my_kworks, get_kwork_details</dt><dd>Ваши кворки</dd></div>
+      <div><dt>get_user_info, search_users</dt><dd>Профили пользователей</dd></div>
+      <div><dt>list_categories, list_favorite_categories</dt><dd>Категории</dd></div>
+      <div><dt>list_notifications</dt><dd>Уведомления</dd></div>
+      <div><dt>prepare_write, commit_write, get_write_status, reconcile_write</dt><dd>Запись: отклик на проект и его удаление, отправка, правка и удаление сообщения, отметка диалога прочитанным, сдача заказа на проверку, запуск и пауза кворка</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="kwork-com">
+  <div class="wrap">
+    <h2>kwork.ru и kwork.com</h2>
+    <p class="section-lead">По умолчанию сервер работает с kwork.ru. Для kwork.com добавьте в конфиг клиента
+      <code>KWORK_SITE=com</code>. Аккаунт и токен у сайтов общие, входить заново не нужно. Биржи проектов
+      на kwork.com нет, а диалоги, заказы и кворки работают как обычно.</p>
+  </div>
+</section>
+
+<section id="faq" class="faq">
+  <div class="wrap">
+    <h2>Вопросы</h2>
+    <details>
+      <summary>Это официальный инструмент Kwork?</summary>
+      <div><p>Нет. Это независимый проект с открытым кодом под лицензией MIT. Kwork его не выпускает и не поддерживает.</p></div>
+    </details>
+    <details>
+      <summary>Может ли агент откликнуться на проект без меня?</summary>
+      <div><p>Нет. Запись выключена по умолчанию. Когда вы её включаете, агент сначала показывает точный текст,
+        цену и получателя, и запрос уходит на Kwork только после вашего подтверждения.</p></div>
+    </details>
+    <details>
+      <summary>Где хранятся логин и пароль?</summary>
+      <div><p>Нигде. Их спрашивает только <code>kwork-mcp-bootstrap</code> через скрытый ввод, а на диск
+        сохраняется токен в <code>~/.local/state/kwork-mcp</code> с правами <code>0600</code>. Токен не шифруется,
+        поэтому включите шифрование диска.</p></div>
+    </details>
+    <details>
+      <summary>Какие клиенты поддерживаются?</summary>
+      <div><p>Claude Code, Claude Desktop, Codex, Cursor и другие MCP-клиенты, которые умеют запускать
+        локальный сервер через stdio.</p></div>
+    </details>
+    <details>
+      <summary>Работает ли на Windows?</summary>
+      <div><p>Нет, только macOS и Linux.</p></div>
+    </details>
+    <details>
+      <summary>Сколько стоит?</summary>
+      <div><p>Нисколько: kwork-mcp распространяется бесплатно под лицензией MIT.</p></div>
+    </details>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <a href="https://github.com/simonether/kwork-mcp">GitHub</a>
+      <a href="https://pypi.org/project/kwork-mcp/">PyPI</a>
+      <a href="https://github.com/simonether/kwork-mcp/blob/main/docs/security.md">Модель безопасности</a>
+      <a href="https://github.com/simonether/kwork-mcp/blob/main/docs/configuration.md">Настройки</a>
+      <a href="https://github.com/simonether/kwork-mcp/blob/main/CHANGELOG.md">Изменения</a>
+      <a href="https://github.com/simonether/kwork-mcp/issues">Сообщить о проблеме</a>
+    </div>
+    <p>kwork-mcp · MIT · <a href="https://github.com/simonether">Simon Sudarushkin</a>. Kwork является
+      товарным знаком своего правообладателя; проект с ним не связан.</p>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll(".code").forEach(function (block) {
+  if (!navigator.clipboard) return;
+  var button = document.createElement("button");
+  button.type = "button";
+  button.className = "copy";
+  button.textContent = "Копировать";
+  button.addEventListener("click", function () {
+    navigator.clipboard.writeText(block.querySelector("code").textContent).then(function () {
+      button.textContent = "Скопировано";
+      setTimeout(function () { button.textContent = "Копировать"; }, 1500);
+    });
+  });
+  block.appendChild(button);
+  block.classList.add("has-copy");
+});
+</script>
+</body>
+</html>

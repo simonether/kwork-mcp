@@ -1,0 +1,45 @@
+<svg viewBox="0 0 1200 630" width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <!-- Source of site/og.png: rsvg-convert assets/og.svg -o site/og.png -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c0c0c"/>
+      <stop offset="50%" stop-color="#100d16"/>
+      <stop offset="100%" stop-color="#161022"/>
+    </linearGradient>
+    <linearGradient id="ac" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e040fb"/>
+      <stop offset="100%" stop-color="#536dfe"/>
+    </linearGradient>
+    <radialGradient id="gl" cx="78%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#e040fb" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#e040fb" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#gl)"/>
+
+  <g stroke-width="1">
+    <line x1="820" y1="110" x2="960" y2="160" stroke="#e040fb" stroke-opacity="0.18"/>
+    <line x1="960" y1="160" x2="900" y2="290" stroke="#536dfe" stroke-opacity="0.15"/>
+    <line x1="900" y1="290" x2="820" y2="110" stroke="#7c4dff" stroke-opacity="0.12"/>
+    <line x1="960" y1="160" x2="1100" y2="120" stroke="#e040fb" stroke-opacity="0.15"/>
+    <line x1="1100" y1="120" x2="1120" y2="270" stroke="#536dfe" stroke-opacity="0.13"/>
+    <line x1="1120" y1="270" x2="960" y2="160" stroke="#e040fb" stroke-opacity="0.10"/>
+    <line x1="900" y1="290" x2="1040" y2="360" stroke="#536dfe" stroke-opacity="0.10"/>
+    <line x1="1040" y1="360" x2="1120" y2="270" stroke="#e040fb" stroke-opacity="0.09"/>
+  </g>
+  <circle cx="820" cy="110" r="4" fill="#e040fb" fill-opacity="0.5"/>
+  <circle cx="960" cy="160" r="6" fill="#e040fb" fill-opacity="0.6"/>
+  <circle cx="900" cy="290" r="4" fill="#536dfe" fill-opacity="0.45"/>
+  <circle cx="1100" cy="120" r="3.5" fill="#7c4dff" fill-opacity="0.4"/>
+  <circle cx="1120" cy="270" r="5" fill="#536dfe" fill-opacity="0.5"/>
+  <circle cx="1040" cy="360" r="3.5" fill="#e040fb" fill-opacity="0.35"/>
+
+  <text x="80" y="250" font-family="Menlo, monospace" font-size="96" font-weight="700" fill="url(#ac)">kwork-mcp</text>
+  <text x="84" y="330" font-family="Helvetica Neue, Arial, sans-serif" font-size="44" font-weight="600" fill="#ece9f2">MCP-сервер для Kwork</text>
+  <text x="84" y="392" font-family="Helvetica Neue, Arial, sans-serif" font-size="32" fill="#a39fb0">Claude Code · Codex · Cursor · Claude Desktop</text>
+
+  <rect x="84" y="460" width="120" height="3" rx="1.5" fill="url(#ac)" opacity="0.7"/>
+  <text x="84" y="530" font-family="Helvetica Neue, Arial, sans-serif" font-size="30" fill="#ece9f2" fill-opacity="0.85">Биржа, диалоги, заказы и отклики. Отправка только после вашего «да»</text>
+</svg>
