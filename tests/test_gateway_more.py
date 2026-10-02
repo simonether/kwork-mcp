@@ -190,6 +190,10 @@ async def test_read_identity_user_search_and_discovery_error_branches(
         "success": True,
         "response": [],
     }
+    gateway.session.client.responses["favorite_categories"] = {
+        "success": True,
+        "response": [{"id": 41, "name": "Скрипты", "description": ""}],
+    }
     with pytest.raises(GatewayError):
         await gateway.discover_projects(mode="favorites", **base)
 

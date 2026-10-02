@@ -181,8 +181,8 @@ def register(mcp: FastMCP) -> None:
     ) -> ToolResult:
         """Получить страницу проектов с явным discovery-режимом и opaque cursor.
 
-        ``favorites`` передаёт пустую категорию, ``all`` — специальное значение
-        ``all``, ``category_ids`` требует непустой список. Результат сохраняет полные
+        ``favorites`` берёт избранные рубрики аккаунта (нужна хотя бы одна), ``all`` —
+        вся биржа, ``category_ids`` требует непустой список. Результат сохраняет полные
         описания и unknown upstream fields, paging, query fingerprint и watermark,
         пригодный для будущего delta polling.
         """

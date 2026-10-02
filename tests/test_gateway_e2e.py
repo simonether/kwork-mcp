@@ -58,8 +58,14 @@ class ReadSession:
 
 
 class ProjectClient:
-    def __init__(self) -> None:
+    def __init__(self, favorites: list[Any] | None = None) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.favorites: list[Any] = (
+            favorites if favorites is not None else [{"id": 41, "name": "Скрипты, боты и mini apps", "description": ""}]
+        )
+
+    async def favorite_categories(self, *, use_token: bool) -> dict[str, Any]:
+        return {"success": True, "response": self.favorites}
 
     async def projects(self, *, use_token: bool, **params: Any) -> dict[str, Any]:
         assert use_token is True
@@ -93,6 +99,68 @@ class ProjectClient:
             "paging": {"page": 2, "limit": 1, "total": 2, "pages": 2},
             "connects": {"active": 7},
         }
+
+
+_NO_FILTERS: dict[str, Any] = {
+    "category_ids": None,
+    "price_from": None,
+    "price_to": None,
+    "hiring_from": None,
+    "offers_from": None,
+    "offers_to": None,
+    "query": None,
+}
+
+
+def _discovery_gateway(config_factory: Callable[..., KworkConfig], client: ProjectClient) -> KworkGateway:
+    config = config_factory()
+    return KworkGateway(config, CoordinationStore(config), ReadSession(client))  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_favorites_mode_sends_the_favorite_category_ids(
+    config_factory: Callable[..., KworkConfig],
+) -> None:
+    # Live 2026-10-02: an empty ``categories`` returned the same feed as ``all``.
+    client = ProjectClient(
+        [{"id": 44, "name": "SEO", "description": ""}, {"id": 41, "name": "Боты", "description": ""}]
+    )
+    gateway = _discovery_gateway(config_factory, client)
+
+    first = await gateway.discover_projects(mode="favorites", cursor=None, **_NO_FILTERS)
+
+    assert client.calls[0] == {"categories": "41,44", "page": 1}
+    assert first.category_ids == [41, 44]
+    assert first.projects.page is not None and first.projects.page.next_cursor is not None
+
+    client.favorites = [{"id": 41, "name": "Боты", "description": ""}]
+    with pytest.raises(GatewayError) as changed:
+        await gateway.discover_projects(mode="favorites", cursor=first.projects.page.next_cursor, **_NO_FILTERS)
+    assert changed.value.diagnostic == "cursor_filter_mismatch"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("favorites", "diagnostic"),
+    [
+        ([], "no_favorite_categories"),
+        ([{"name": "без id"}], "favoriteCategories:item_without_id"),
+        ([{"id": index, "name": "x"} for index in range(1, 102)], "too_many_category_ids"),
+    ],
+)
+async def test_favorites_mode_without_usable_favorites_sends_nothing(
+    config_factory: Callable[..., KworkConfig],
+    favorites: list[Any],
+    diagnostic: str,
+) -> None:
+    client = ProjectClient(favorites)
+    gateway = _discovery_gateway(config_factory, client)
+
+    with pytest.raises(GatewayError) as refused:
+        await gateway.discover_projects(mode="favorites", cursor=None, **_NO_FILTERS)
+
+    assert refused.value.diagnostic == diagnostic
+    assert client.calls == []
 
 
 @pytest.mark.asyncio
