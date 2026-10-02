@@ -47,7 +47,7 @@ KWORK_EXPECTED_USER_ID не задан, bootstrap покажет найденн�
 
 Записи с неизвестным исходом (submission_unknown) блокируют новые commit для
 аккаунта, пока их не сверит reconcile_write. Если read-back не может прийти к
-выводу, проверьте операцию на kwork.ru и зафиксируйте результат вручную:
+выводу, проверьте операцию на сайте Kwork и зафиксируйте результат вручную:
 
   kwork-mcp-bootstrap pending-writes
   kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent
@@ -544,7 +544,7 @@ async def _run_write_admin(
             return 1
         stderr.write(_terminal_safe(json.dumps(_write_summary(record), ensure_ascii=False, indent=2)) + "\n")
         stderr.write(
-            "Убедитесь на kwork.ru, что операция "
+            "Убедитесь на сайте Kwork, что операция "
             + ("выполнена" if outcome == "succeeded" else "НЕ выполнена")
             + ". Ошибочное решение может привести к дублю или потере записи.\n"
         )

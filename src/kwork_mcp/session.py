@@ -677,7 +677,7 @@ class KworkSessionManager:
                     route = _canonical_route("web-login")
                     await self.coordinator.acquire(self.scope, route)
                     try:
-                        result = await client.web_login(url_to_redirect="/exchange")
+                        result = await client.web_login(url_to_redirect=self.config.web_login_redirect)
                         if result.status is None or not 200 <= result.status < 400:
                             raise GatewayError(
                                 ErrorCode.AUTH_EXPIRED,

@@ -167,6 +167,8 @@ class KworkConfig(BaseSettings):
     expected_username: str | None = None
     enable_writes: bool = False
 
+    site: Literal["ru", "com"] = "ru"
+
     proxy_url: SecretStr | None = None
     timeout: float = Field(default=30.0, ge=1.0, le=120.0)
 
@@ -286,6 +288,20 @@ class KworkConfig(BaseSettings):
             raise ValueError("KWORK_ENABLE_WRITES requires KWORK_EXPECTED_USER_ID")
         if self.retry_backoff_max < self.retry_backoff_base:
             raise ValueError("retry_backoff_max must be >= retry_backoff_base")
+
+    @property
+    def api_host(self) -> str:
+        return f"https://api.kwork.{self.site}/{{}}"
+
+    @property
+    def web_base_url(self) -> str:
+        return f"https://kwork.{self.site}/"
+
+    @property
+    def web_login_redirect(self) -> str:
+        # The .com locale has no project exchange; "/" still completes the
+        # cookie-based web login.
+        return "/" if self.site == "com" else "/exchange"
 
     @property
     def token_value(self) -> str:

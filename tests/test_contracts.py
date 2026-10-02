@@ -194,8 +194,9 @@ def test_sanitized_fixture_preserves_unknown_fields_and_redacts_secrets() -> Non
     ],
 )
 def test_secure_web_client_rejects_untrusted_login_urls(url: str) -> None:
+    web = SecureKworkWebClient(Kwork("", ""))
     with pytest.raises(ContractDriftError):
-        SecureKworkWebClient._validate_kwork_url(url)
+        web._validate_kwork_url(url)
 
 
 @pytest.mark.parametrize(
@@ -214,6 +215,7 @@ def test_secure_web_client_rejects_unsafe_relative_redirects(redirect: str) -> N
 
 
 def test_secure_web_client_accepts_only_expected_kwork_origins() -> None:
-    SecureKworkWebClient._validate_kwork_url("https://kwork.ru/login")
-    SecureKworkWebClient._validate_kwork_url("https://api.kwork.ru/path")
+    web = SecureKworkWebClient(Kwork("", ""))
+    web._validate_kwork_url("https://kwork.ru/login")
+    web._validate_kwork_url("https://api.kwork.ru/path")
     SecureKworkWebClient._validate_relative_redirect("/exchange")

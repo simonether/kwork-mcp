@@ -10,7 +10,7 @@ import aiohttp
 from aiohttp import ClientResponse
 from kwork import Kwork
 from kwork.exceptions import KworkHTTPException
-from kwork.web_client import KworkWebClient, WebLoginResult
+from kwork.web_client import DEFAULT_WEB_BASE_URL, KworkWebClient, WebLoginResult
 
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.errors import ContractDriftError
@@ -37,15 +37,15 @@ class SecureKworkWebClient(KworkWebClient):
                 response_json=payload,
             )
 
-    @staticmethod
-    def _validate_kwork_url(value: str) -> None:
+    def _validate_kwork_url(self, value: str) -> None:
         if "\\" in value or any(ord(char) < 32 or ord(char) == 127 for char in value):
             raise ContractDriftError("web_login_url_control_character")
         parsed = urlsplit(value)
         hostname = (parsed.hostname or "").casefold().rstrip(".")
         if parsed.scheme.casefold() != "https":
             raise ContractDriftError("web_login_url_requires_https")
-        if hostname != "kwork.ru" and not hostname.endswith(".kwork.ru"):
+        base_host = (urlsplit(self._base_url).hostname or "").casefold().rstrip(".")
+        if hostname != base_host and not hostname.endswith(f".{base_host}"):
             raise ContractDriftError("web_login_url_untrusted_host")
         if parsed.username is not None or parsed.password is not None:
             raise ContractDriftError("web_login_url_contains_userinfo")
@@ -264,10 +264,19 @@ class SecureKworkWebClient(KworkWebClient):
 class GatewayKworkClient(Kwork):
     """Keep ``success:false`` payloads that upstream 0.2.0 otherwise discards."""
 
+    def __init__(
+        self,
+        *args: Any,
+        web_base_url: str = DEFAULT_WEB_BASE_URL,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._web_base_url = web_base_url
+
     @property
     def web(self) -> SecureKworkWebClient:
         if not isinstance(self._web_client, SecureKworkWebClient):
-            self._web_client = SecureKworkWebClient(self)
+            self._web_client = SecureKworkWebClient(self, base_url=self._web_base_url)
         return self._web_client
 
     async def _handle_json_payload(
@@ -369,6 +378,8 @@ def make_client(config: KworkConfig) -> GatewayKworkClient:
         password=config.password_value,
         proxy=config.proxy_value,
         phone_last=config.phone_last_value,
+        api_host=config.api_host,
+        web_base_url=config.web_base_url,
         timeout=config.timeout,
         retry_max_attempts=1,
         retry_backoff_base=config.retry_backoff_base,
