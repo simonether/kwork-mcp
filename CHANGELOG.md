@@ -5,6 +5,20 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-02
+
+### Fixed
+
+- `submit_offer` на kwork.ru: web-вход завершался на странице `/exchange`, которую
+  Kwork убрал (404), и каждая отправка отклика падала с `auth_expired`, хотя вход по
+  токену проходил. Теперь web-вход заканчивается на `/projects`.
+- Сверка отклика не узнавала собственный отклик: Kwork хранит название и текст с
+  `&laquo;`/`&raquo;` и без пустых строк. Отправка заканчивалась
+  `submission_unknown` и блокировала запись до ручной сверки. Теперь отклик
+  сравнивается с текстом в том виде, в каком его хранит Kwork.
+- Пропавшая страница после web-входа (404/410) отдаёт `contract_drift`, а не
+  `auth_expired`.
+
 ## [1.2.0] - 2026-10-02
 
 ### Added
@@ -165,7 +179,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.1
 [1.2.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.0.0

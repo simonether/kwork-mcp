@@ -32,7 +32,7 @@ Windows не поддерживается.
 Запустите в обычном терминале:
 
 ```bash
-uvx --from kwork-mcp==1.2.0 kwork-mcp-bootstrap
+uvx --from kwork-mcp==1.2.1 kwork-mcp-bootstrap
 ```
 
 Команда скрыто спросит логин и пароль Kwork, а также, по желанию, последние 4 цифры
@@ -57,7 +57,7 @@ claude mcp add kwork --scope user \
   -e KWORK_EXPECTED_USER_ID=123456 \
   -e KWORK_PERSIST_TOKEN=true \
   -e KWORK_ENABLE_WRITES=false \
-  -- uvx --from kwork-mcp==1.2.0 kwork-mcp
+  -- uvx --from kwork-mcp==1.2.1 kwork-mcp
 ```
 
 <details>
@@ -70,7 +70,7 @@ Settings → Developer → Edit Config, в `claude_desktop_config.json`:
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["--from", "kwork-mcp==1.2.0", "kwork-mcp"],
+      "args": ["--from", "kwork-mcp==1.2.1", "kwork-mcp"],
       "env": {
         "KWORK_EXPECTED_USER_ID": "123456",
         "KWORK_PERSIST_TOKEN": "true",
@@ -99,7 +99,7 @@ Settings → Developer → Edit Config, в `claude_desktop_config.json`:
 ```toml
 [mcp_servers.kwork]
 command = "uvx"
-args = ["--from", "kwork-mcp==1.2.0", "kwork-mcp"]
+args = ["--from", "kwork-mcp==1.2.1", "kwork-mcp"]
 
 [mcp_servers.kwork.env]
 KWORK_EXPECTED_USER_ID = "123456"
@@ -128,7 +128,7 @@ claude mcp add kwork --scope user \
   -e KWORK_EXPECTED_USER_ID=123456 \
   -e KWORK_PERSIST_TOKEN=true \
   -e KWORK_ENABLE_WRITES=true \
-  -- uvx --from kwork-mcp==1.2.0 kwork-mcp
+  -- uvx --from kwork-mcp==1.2.1 kwork-mcp
 ```
 
 Каждая запись идёт в два шага. Сначала агент готовит точный запрос (текст, цену,
@@ -150,7 +150,7 @@ claude mcp add kwork-com --scope user \
   -e KWORK_PERSIST_TOKEN=true \
   -e KWORK_ENABLE_WRITES=false \
   -e KWORK_SITE=com \
-  -- uvx --from kwork-mcp==1.2.0 kwork-mcp
+  -- uvx --from kwork-mcp==1.2.1 kwork-mcp
 ```
 
 Аккаунт и токен у kwork.ru и kwork.com общие, поэтому заново входить через
