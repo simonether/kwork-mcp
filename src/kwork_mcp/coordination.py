@@ -48,6 +48,13 @@ class StoredWrite:
     result_json: str | None
     error_json: str | None
 
+    @property
+    def prepared_site(self) -> str:
+        """The Kwork site the write targets; rows stored before KWORK_SITE existed targeted kwork.ru."""
+        payload = json.loads(self.payload_json)
+        site = payload.get("prepared_site", "ru") if isinstance(payload, dict) else "ru"
+        return str(site)
+
 
 @dataclass(frozen=True, slots=True)
 class PreparedRecord:

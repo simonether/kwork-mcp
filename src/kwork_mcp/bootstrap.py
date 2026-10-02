@@ -493,6 +493,7 @@ def _write_summary(record: StoredWrite) -> dict[str, Any]:
         "state": record.state.value,
         "prepared_at": datetime.fromtimestamp(record.prepared_at, tz=UTC).isoformat(),
         "updated_at": datetime.fromtimestamp(record.updated_at, tz=UTC).isoformat(),
+        "site": record.prepared_site,
         "request": request,
     }
 
@@ -547,7 +548,7 @@ async def _run_write_admin(
             return 1
         stderr.write(_terminal_safe(json.dumps(_write_summary(record), ensure_ascii=False, indent=2)) + "\n")
         stderr.write(
-            "Убедитесь на сайте Kwork, что операция "
+            f"Убедитесь на kwork.{_terminal_safe(record.prepared_site)}, что операция "
             + ("выполнена" if outcome == "succeeded" else "НЕ выполнена")
             + ". Ошибочное решение может привести к дублю или потере записи.\n"
         )
