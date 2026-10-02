@@ -192,3 +192,29 @@ async def test_notifications_without_response_key_are_empty(
     result = await _gateway(config_factory, EmptyNotificationsClient()).list_notifications()
 
     assert result.raw == []
+
+
+def test_offer_readback_matches_the_text_kwork_stores() -> None:
+    """Live 2026-10-02: Kwork stored a sent offer with blank lines collapsed and «» escaped."""
+    from kwork_mcp.models import OfferRecord
+
+    request = {
+        "title": "Бот: этап 1, «сценарий»",
+        "description": "Первая строка.\n\nВторая строка с «кавычками».\n\n\nТретья.",
+        "price": 50000,
+        "duration_days": 12,
+    }
+    stored = OfferRecord(
+        offer_id=1,
+        project_id=2,
+        title="Бот: этап 1, &laquo;сценарий&raquo;",
+        description="Первая строка.\nВторая строка с &laquo;кавычками&raquo;.\nТретья.",
+        price=50000,
+        duration_days=12,
+        created_at=1_000,
+        raw={},
+    )
+
+    assert KworkGateway._offer_fingerprint_state(stored, request) == "match"
+    changed = stored.model_copy(update={"description": "Первая строка.\nДругой текст.\nТретья."})
+    assert KworkGateway._offer_fingerprint_state(changed, request) == "different"
