@@ -252,11 +252,12 @@ class ReadOperations(GatewayBase):
             raise GatewayError(ErrorCode.VALIDATION, diagnostic="invalid_price_range")
         if offers_from is not None and offers_to is not None and offers_from > offers_to:
             raise GatewayError(ErrorCode.VALIDATION, diagnostic="invalid_offers_range")
-        categories = {
-            "favorites": "",
-            "all": "all",
-            "category_ids": ",".join(str(value) for value in normalized_categories),
-        }[mode]
+        if mode == "favorites":
+            # An empty ``categories`` used to select the favorite categories; Kwork now
+            # answers it with the whole exchange (live 2026-10-02), so name them explicitly.
+            # They also enter the fingerprint: a cursor stops working if favorites change.
+            normalized_categories = await self._favorite_category_ids()
+        categories = "all" if mode == "all" else ",".join(str(value) for value in normalized_categories)
         filter_payload = {
             "mode": mode,
             "category_ids": normalized_categories,
@@ -968,6 +969,22 @@ class ReadOperations(GatewayBase):
             lambda client: client.get_categories(),
         )
         return ItemCollection[CategoryRecord](items=[self._category_record(category) for category in categories])
+
+    async def _favorite_category_ids(self) -> list[int]:
+        favorites = (await self.list_favorite_categories()).raw
+        if not isinstance(favorites, list):
+            raise ContractDriftError("favoriteCategories:response_not_array")
+        ids: set[int] = set()
+        for item in favorites:
+            category_id = _positive_int(item.get("id")) if isinstance(item, dict) else None
+            if category_id is None:
+                raise ContractDriftError("favoriteCategories:item_without_id")
+            ids.add(category_id)
+        if not ids:
+            raise GatewayError(ErrorCode.VALIDATION, diagnostic="no_favorite_categories")
+        if len(ids) > 100:
+            raise GatewayError(ErrorCode.VALIDATION, diagnostic="too_many_category_ids")
+        return sorted(ids)
 
     async def list_favorite_categories(self) -> RawObjectData:
         self._require_project_exchange("favoriteCategories")

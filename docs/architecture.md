@@ -248,8 +248,12 @@ Unknown tool middleware отклоняет как protocol-level JSON-RPC `-3260
 ## Discovery
 
 `discover_projects` принимает ровно один режим: `favorites`, `all` или
-`category_ids`. `query_fingerprint` — SHA-256 только от режима и фильтров
-(`category_ids`, price/offers ranges, `hiring_from`, `query`); подтверждённый account scope
+`category_ids`. `favorites` перед каждым запросом читает избранные рубрики
+(`favoriteCategories`) и передаёт их ID явно: пустой `categories` Kwork теперь
+понимает как всю биржу. `query_fingerprint` — SHA-256 только от режима и фильтров
+(`category_ids`, для `favorites` это найденные ID, price/offers ranges, `hiring_from`,
+`query`), поэтому cursor перестаёт работать, если избранные рубрики изменились;
+подтверждённый account scope
 хранится в cursor отдельным полем. Opaque cursor HMAC-подписан и несёт `kind`,
 `scope`, `page` и `fingerprint`, поэтому не может быть применён к другому аккаунту
 или запросу. Page metadata содержит upstream paging, `next_cursor` и
