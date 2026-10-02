@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from kwork_mcp.coordination import StoredWrite
 from kwork_mcp.errors import AmbiguousWriteError, ContractDriftError, GatewayError
-from kwork_mcp.gateway.parsing import _epoch_seconds, _normalize_offer_text, _normalize_remote_text
+from kwork_mcp.gateway.parsing import _epoch_seconds, _normalize_message_text, _normalize_offer_text
 from kwork_mcp.gateway.reads import ReadOperations
 from kwork_mcp.models import (
     DialogRecord,
@@ -104,7 +104,7 @@ class ReadBackLookups(ReadOperations):
                 if message.text is None:
                     inconclusive = True
                     continue
-                text_matches = _normalize_remote_text(message.text) == _normalize_remote_text(text)
+                text_matches = _normalize_message_text(message.text) == _normalize_message_text(text)
                 timestamp = _epoch_seconds(message.created_at)
                 if timestamp is None or not lower_bound <= timestamp <= upper_bound:
                     if text_matches and timestamp is None:

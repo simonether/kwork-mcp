@@ -20,6 +20,7 @@ from kwork_mcp.errors import AmbiguousWriteError, ContractDriftError, GatewayErr
 from kwork_mcp.gateway.offer_flow import OfferSubmission
 from kwork_mcp.gateway.parsing import (
     _as_json_dict,
+    _normalize_message_text,
     _normalize_remote_text,
     _optional_int,
     _positive_int,
@@ -363,7 +364,7 @@ class EditMessageHandler(ActionHandler[EditMessageRequest]):
             raise AmbiguousWriteError("edited_message_missing")
         if message.text is None:
             raise AmbiguousWriteError("edited_message_text_missing")
-        if _normalize_remote_text(message.text) == _normalize_remote_text(str(request["text"])):
+        if _normalize_message_text(message.text) == _normalize_message_text(str(request["text"])):
             success = True
         elif _text_fingerprint(message.text) == resolved.get("message_text_sha256_at_prepare"):
             # Still the exact text seen at prepare time: the edit did not land.

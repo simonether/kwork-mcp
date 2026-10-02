@@ -218,3 +218,98 @@ def test_offer_readback_matches_the_text_kwork_stores() -> None:
     assert KworkGateway._offer_fingerprint_state(stored, request) == "match"
     changed = stored.model_copy(update={"description": "Первая строка.\nДругой текст.\nТретья."})
     assert KworkGateway._offer_fingerprint_state(changed, request) == "different"
+
+
+# A dialog of 101 messages as inboxes returned it on 2026-10-02: pages are
+# numbered from the oldest message and filled from the newest end, so page 1
+# holds the single oldest message. Without a page Kwork answers with the last one.
+_DIALOG_TOTAL = 101
+_DIALOG_LIMIT = 50
+
+
+def _dialog_page(page: int) -> list[dict[str, Any]]:
+    pages = -(-_DIALOG_TOTAL // _DIALOG_LIMIT)
+    first = _DIALOG_TOTAL - (pages - 1) * _DIALOG_LIMIT
+    start = 0 if page == 1 else first + (page - 2) * _DIALOG_LIMIT
+    size = first if page == 1 else _DIALOG_LIMIT
+    # Newest first within a page, like the live response.
+    return [
+        {"message_id": 1000 + index, "from_id": 7, "message": f"m{index}", "time": 10_000 + index}
+        for index in reversed(range(start, start + size))
+    ]
+
+
+class LongDialogClient:
+    def __init__(self, *, short_page: int = 1) -> None:
+        self.short_page = short_page
+        self.requested: list[int | None] = []
+
+    async def inboxes(self, *, use_token: bool, **params: Any) -> dict[str, Any]:
+        page = params.get("page")
+        self.requested.append(page)
+        pages = -(-_DIALOG_TOTAL // _DIALOG_LIMIT)
+        current = pages if page is None else page
+        items = _dialog_page(current)
+        if self.short_page != 1 and current == 1:
+            items = _dialog_page(2)  # a page 1 that is full breaks the live layout
+        return {
+            "success": True,
+            "response": items,
+            "paging": {"page": current, "pages": pages, "total": _DIALOG_TOTAL, "limit": _DIALOG_LIMIT},
+        }
+
+
+@pytest.mark.asyncio
+async def test_long_dialog_pages_fill_from_the_newest_end(config_factory: Callable[..., KworkConfig]) -> None:
+    client = LongDialogClient()
+    gateway = _gateway(config_factory, client)
+
+    latest = await gateway.get_dialog("fixture")
+    oldest = await gateway.get_dialog("fixture", 1)
+    middle = await gateway.get_dialog("fixture", 2)
+
+    assert client.requested == [None, 1, 2]
+    assert latest.page is not None and latest.page.page == 3 and latest.page.total_pages == 3
+    assert len(latest.items) == 50 and latest.items[0].message_id == 1100
+    assert [item.message_id for item in oldest.items] == [1000]
+    assert len(middle.items) == 50
+
+
+@pytest.mark.asyncio
+async def test_long_dialog_with_a_full_first_page_is_drift(config_factory: Callable[..., KworkConfig]) -> None:
+    gateway = _gateway(config_factory, LongDialogClient(short_page=0))
+
+    with pytest.raises(GatewayError) as drift:
+        await gateway.get_dialog("fixture", 1)
+
+    assert drift.value.diagnostic == "inboxes:paging_item_count_inconsistent"
+
+
+class StaleLatestPageClient:
+    async def inboxes(self, *, use_token: bool, **params: Any) -> dict[str, Any]:
+        return {
+            "success": True,
+            "response": _dialog_page(2),
+            "paging": {"page": 2, "pages": 3, "total": _DIALOG_TOTAL, "limit": _DIALOG_LIMIT},
+        }
+
+
+@pytest.mark.asyncio
+async def test_dialog_without_page_must_answer_with_the_last_page(config_factory: Callable[..., KworkConfig]) -> None:
+    gateway = _gateway(config_factory, StaleLatestPageClient())
+
+    with pytest.raises(GatewayError) as drift:
+        await gateway.get_dialog("fixture")
+
+    assert drift.value.diagnostic == "inboxes:paging_latest_page_mismatch"
+
+
+def test_message_text_matches_the_html_escaped_form_kwork_returns() -> None:
+    """Live 2026-10-02: a sent ASCII quote read back as &quot;, while «» and blank lines stayed."""
+    from kwork_mcp.gateway.parsing import _normalize_message_text
+
+    sent = 'Связка "Модель X" уже в индексе.\n\nДальше «по плану».'
+    stored = "Связка &quot;Модель X&quot; уже в индексе.\n\nДальше «по плану»."
+
+    assert _normalize_message_text(stored) == _normalize_message_text(sent)
+    assert _normalize_message_text(stored) != _normalize_message_text(sent.replace("\n\n", "\n"))
