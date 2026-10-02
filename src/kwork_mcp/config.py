@@ -300,14 +300,15 @@ class KworkConfig(BaseSettings):
     @property
     def has_project_exchange(self) -> bool:
         # kwork.com answers the project-exchange routes with a bare
-        # {"success": true} and has no /exchange page.
+        # {"success": true}.
         return self.site == "ru"
 
     @property
     def web_login_redirect(self) -> str:
-        # The .com locale has no project exchange; "/" still completes the
-        # cookie-based web login.
-        return "/" if self.site == "com" else "/exchange"
+        # The login flow finishes with a GET of this page, and its status is
+        # the login status. kwork.ru retired /exchange (404); the exchange
+        # lives at /projects. The .com locale has no exchange, so it uses "/".
+        return "/" if self.site == "com" else "/projects"
 
     @property
     def token_value(self) -> str:
