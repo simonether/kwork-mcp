@@ -88,6 +88,11 @@ docs/               architecture, configuration, security, migration and release
 - kwork.com (`KWORK_SITE=com`) shares the account and token with kwork.ru but has no project
   exchange: `projects` and `favoriteCategories` return `{"success": true}` without `response`.
   `project` by ID still works; worker orders differ between the sites.
+- The web login (`getWebAuthToken` → login URL → landing page) reports the landing page's status.
+  kwork.ru retired `/exchange` (404 since 2026-10); land on `/projects`.
+- Kwork stores an offer's title and description HTML-escaped (`&laquo;`/`&raquo;`) with blank lines
+  collapsed; compare offers with `_normalize_offer_text`. The createoffer response may carry no offer
+  ID, so commit falls back to read-back.
 
 ## Boundaries
 
