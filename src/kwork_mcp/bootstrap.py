@@ -41,6 +41,9 @@ kwork-mcp-bootstrap — безопасная одноразовая автори
 KWORK_EXPECTED_USER_ID не задан, bootstrap покажет найденный аккаунт и попросит
 подтвердить привязку; если задан, аккаунт обязан совпасть с ним.
 
+Для kwork.com задайте KWORK_SITE=com. Аккаунт и токен у kwork.ru и kwork.com
+общие, поэтому повторный bootstrap при смене сайта не нужен.
+
 Если существует legacy ~/.kwork_token с owner=current user и mode 0600, CLI
 предложит явно проверить и импортировать его. Обычный MCP server legacy-файл
 никогда не импортирует.
@@ -732,6 +735,8 @@ async def run_bootstrap_cli(
             },
             "credential_store": "account_scoped_token",
         }
+        if config.site != "ru":
+            result["environment"]["KWORK_SITE"] = config.site
         if used_legacy:
             result["legacy_file_retained"] = True
         stdout.write(json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n")

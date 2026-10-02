@@ -6,6 +6,8 @@ import uuid
 
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.coordination import CoordinationStore, CursorCodec
+from kwork_mcp.errors import GatewayError
+from kwork_mcp.models import ErrorCode
 from kwork_mcp.session import KworkSessionManager
 
 
@@ -21,6 +23,15 @@ class GatewayBase:
         self.session = session
         self.cursor_codec = CursorCodec(coordinator)
         self.instance_id = str(uuid.uuid4())
+
+    def _require_project_exchange(self, route: str) -> None:
+        """Refuse exchange-only operations locally instead of spending a request."""
+
+        if not self.config.has_project_exchange:
+            raise GatewayError(
+                ErrorCode.SITE_UNSUPPORTED,
+                diagnostic=f"{route}:no_project_exchange_on_{self.config.site}",
+            )
 
     @property
     def _redaction_secrets(self) -> tuple[str, ...]:

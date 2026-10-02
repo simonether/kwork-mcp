@@ -54,6 +54,8 @@ class ErrorCode(StrEnum):
     WRITE_DISABLED = "write_disabled"
     NOT_FOUND = "not_found"
     VALIDATION = "validation"
+    SITE_UNSUPPORTED = "site_unsupported"
+    SITE_MISMATCH = "site_mismatch"
     UPSTREAM_UNAVAILABLE = "upstream_unavailable"
     INTERNAL = "internal"
 
@@ -112,6 +114,7 @@ class AccountData(BaseModel):
 
     user_id: int
     username: str
+    site: Literal["ru", "com"]
     expected_user_id: int | None
     expected_username: str | None
     binding_state: Literal["bound", "unbound_reads_only"]

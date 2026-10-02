@@ -13,6 +13,16 @@ Normal MCP читает только allowlisted safe policy/identity settings �
 | `KWORK_EXPECTED_USERNAME` | пусто | Дополнительная проверка username; ведущий `@` нормализуется |
 | `KWORK_ENABLE_WRITES` | `false` | Явно включает safe write protocol |
 | `KWORK_PERSIST_TOKEN` | `true` | Обязательный account-bound steady-state store |
+| `KWORK_SITE` | `ru` | Сайт Kwork: `ru` — kwork.ru, `com` — kwork.com |
+
+`KWORK_SITE=com` направляет API в `api.kwork.com`, а web-flow в `kwork.com`.
+Аккаунт и токен у сайтов общие, поэтому повторный bootstrap не нужен. На kwork.com
+нет биржи проектов: `discover_projects`, `list_favorite_categories` и
+`submit_offer` отвечают `site_unsupported` без запроса к Kwork. Часть данных
+различается по сайтам (например, список заказов), поэтому запись подтверждается и
+сверяется только сервером с тем же `KWORK_SITE`, с которым её подготовили; иначе
+возвращается `site_mismatch`, а запись остаётся нетронутой. `account_status.site`
+показывает текущий сайт.
 
 До первого запуска выполните отдельную CLI в настоящем TTY:
 
@@ -133,7 +143,7 @@ Cancellation до durable remote marker освобождает claim в `prepare
 Пока у аккаунта есть запись в `submission_unknown`, любой другой commit
 отклоняется `ambiguous_write` с `error.related_write_id`; `account_status`
 возвращает все такие записи в `unresolved_write_ids`. Если `reconcile_write` не
-может прийти к выводу, оператор проверяет операцию на kwork.ru и фиксирует исход:
+может прийти к выводу, оператор проверяет операцию на сайте Kwork и фиксирует исход:
 
 ```bash
 KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap pending-writes

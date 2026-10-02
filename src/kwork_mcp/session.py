@@ -656,7 +656,7 @@ class KworkSessionManager:
         return result
 
     def invalidate_web_login(self) -> None:
-        """Force a fresh kwork.ru web login before the next web write."""
+        """Force a fresh Kwork web login before the next web write."""
 
         self._web_logged_in = False
 

@@ -64,6 +64,10 @@ _SAFE_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.WRITE_DISABLED: "Операции записи отключены конфигурацией.",
     ErrorCode.NOT_FOUND: "Запрошенный объект Kwork не найден.",
     ErrorCode.VALIDATION: "Параметры операции не прошли проверку.",
+    ErrorCode.SITE_UNSUPPORTED: "Операция недоступна на выбранном сайте Kwork: биржа проектов есть только на kwork.ru.",
+    ErrorCode.SITE_MISMATCH: (
+        "Запись подготовлена для другого сайта Kwork; выполните или сверьте её сервером с тем же KWORK_SITE."
+    ),
     ErrorCode.UPSTREAM_UNAVAILABLE: "Kwork временно недоступен.",
     ErrorCode.INTERNAL: "Внутренняя ошибка шлюза.",
 }

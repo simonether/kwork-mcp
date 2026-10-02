@@ -63,6 +63,18 @@ class _InconclusiveCommitPreflightError(Exception):
 
 
 class WriteProtocol(OfferSubmission):
+    def _require_prepared_site(self, record: StoredWrite) -> None:
+        """A write commits and reconciles only against the site it was prepared for."""
+
+        payload = json.loads(record.payload_json)
+        # Writes prepared before KWORK_SITE existed always targeted kwork.ru.
+        prepared_site = payload.get("prepared_site", "ru") if isinstance(payload, dict) else "ru"
+        if prepared_site != self.config.site:
+            raise GatewayError(
+                ErrorCode.SITE_MISMATCH,
+                diagnostic=f"prepared_for_{prepared_site}_running_{self.config.site}",
+            )
+
     async def _preflight(
         self,
         request: WriteRequest,
@@ -82,11 +94,14 @@ class WriteProtocol(OfferSubmission):
         actor = await self.session.verify_write_identity()
         request_json = request.model_dump(mode="json")
         action = WriteAction(request_json["action"])
+        if action is WriteAction.SUBMIT_OFFER:
+            self._require_project_exchange("submit_offer")
         existing = await self.coordinator.get_write_by_idempotency(
             scope=self.session.scope,
             idempotency_key=idempotency_key,
         )
         if existing is not None:
+            self._require_prepared_site(existing)
             existing_payload = json.loads(existing.payload_json)
             if not isinstance(existing_payload, dict) or existing_payload.get("request") != request_json:
                 raise GatewayError(
@@ -114,6 +129,7 @@ class WriteProtocol(OfferSubmission):
             "request": request_json,
             "resolved": resolved,
             "prepared_account_id": actor.id,
+            "prepared_site": self.config.site,
         }
         prepared = await self.coordinator.prepare_write(
             scope=self.session.scope,
@@ -381,6 +397,7 @@ class WriteProtocol(OfferSubmission):
         record = await self.coordinator.get_write(write_id, scope=scope)
         if record is None:
             raise GatewayError(ErrorCode.NOT_FOUND, diagnostic="write_id_not_found")
+        self._require_prepared_site(record)
         async with self.coordinator.writer_guard(scope):
             return await self._commit_write_guarded(
                 scope=scope,
@@ -696,6 +713,7 @@ class WriteProtocol(OfferSubmission):
             return None
         if record.state is not WriteState.SUBMISSION_UNKNOWN:
             return self._write_status(record, correlation_id=correlation_id)
+        self._require_prepared_site(record)
         actor = await self.session.verify_account_identity()
         stored_payload = json.loads(record.payload_json)
         prepared_account_id = (

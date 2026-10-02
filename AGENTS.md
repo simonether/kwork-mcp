@@ -57,7 +57,8 @@ docs/               architecture, configuration, security, migration and release
   `commit_write` claims it under a per-account file lock, re-runs preflight, marks the durable
   remote boundary right before the side-effecting call, and records `succeeded`, `failed_known`
   or `submission_unknown`. A `submission_unknown` write blocks further commits for the account
-  until `reconcile_write` or the operator resolves it.
+  until `reconcile_write` or the operator resolves it. A write commits and reconciles only on
+  the `KWORK_SITE` it was prepared for (`prepared_site`; legacy rows count as `ru`).
 - **Read-back is evidence-based.** A handler returns present only when the side effect is
   proven, absent only when absence is proven (unchanged object, prepare-time fingerprint), and
   raises `AmbiguousWriteError` otherwise. A missing object or an unrelated status is never
@@ -84,6 +85,9 @@ docs/               architecture, configuration, security, migration and release
   `page/total/limit/pages`.
 - pykwork generic methods pass `**params` as POST params; names must match the Kwork API exactly.
 - `KworkHTTPException` exposes `.status` and `.response_json`; classify with those.
+- kwork.com (`KWORK_SITE=com`) shares the account and token with kwork.ru but has no project
+  exchange: `projects` and `favoriteCategories` return `{"success": true}` without `response`.
+  `project` by ID still works; worker orders differ between the sites.
 
 ## Boundaries
 

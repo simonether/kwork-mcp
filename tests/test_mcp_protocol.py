@@ -47,6 +47,7 @@ class ProtocolGateway(KworkGateway):
         return AccountData(
             user_id=42,
             username="fixture",
+            site="ru",
             expected_user_id=42,
             expected_username="fixture",
             binding_state="bound",
@@ -200,6 +201,7 @@ class ProxyRedactionProtocolGateway(ProtocolGateway):
         return AccountData(
             user_id=42,
             username="fixture",
+            site="ru",
             expected_user_id=42,
             expected_username="fixture",
             binding_state="bound",

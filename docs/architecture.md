@@ -187,7 +187,7 @@ write: ошибка `ambiguous_write` содержит `related_write_id`, а
 `account_status.unresolved_write_ids` перечисляет блокирующие записи. Отсутствие
 side effect становится терминальным только после нескольких полных наблюдений,
 разделённых visibility interval. Если read-back не сходится, оператор фиксирует
-проверенный на kwork.ru исход командой `kwork-mcp-bootstrap resolve-write`.
+проверенный на сайте Kwork исход командой `kwork-mcp-bootstrap resolve-write`.
 Если сохранение подтверждённого remote outcome локально не удалось, gateway
 пытается атомарно сохранить `submission_unknown`; при полной недоступности ledger
 возвращается typed `ambiguous_write`, а истёкший committing lease восстанавливается

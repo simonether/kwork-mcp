@@ -298,6 +298,12 @@ class KworkConfig(BaseSettings):
         return f"https://kwork.{self.site}/"
 
     @property
+    def has_project_exchange(self) -> bool:
+        # kwork.com answers the project-exchange routes with a bare
+        # {"success": true} and has no /exchange page.
+        return self.site == "ru"
+
+    @property
     def web_login_redirect(self) -> str:
         # The .com locale has no project exchange; "/" still completes the
         # cookie-based web login.

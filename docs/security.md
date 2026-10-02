@@ -221,10 +221,14 @@ Runtime закреплён на `kwork==0.2.0`. При старте сверяю
 - `exchangeInfo` может ответить голым объектом без `success`: он принимается
   только при HTTP 200 и отсутствии `success`/`error`/`error_code`/`errors`;
 - notifications: `{"success": true}` без `response` — пустой результат
-  (`known_empty`), а не `contract_drift`.
+  (`known_empty`), а не `contract_drift`;
+- kwork.com: `projects` и `favoriteCategories` отвечают `{"success": true}` без
+  `response`, поэтому при `KWORK_SITE=com` шлюз не вызывает эти маршруты и
+  возвращает `site_unsupported`.
 
-Web-flow дополнительно разрешает только HTTPS host `kwork.ru` или его настоящие
-поддомены. Redirects обрабатываются вручную: post-login запрос не переходит на
+Web-flow дополнительно разрешает только HTTPS host выбранного сайта (`kwork.ru`
+или `kwork.com` по `KWORK_SITE`) или его настоящие поддомены; сессия одного сайта
+отвергает ссылки на другой. Redirects обрабатываются вручную: post-login запрос не переходит на
 другой origin, а любой redirect после mutating POST отвергается, поскольку первый
 запрос уже мог сработать. Каждый FAQ/draft/template prerequisite выполняется до
 durable marker и обязан вернуть 2xx до финального create; structured web errors

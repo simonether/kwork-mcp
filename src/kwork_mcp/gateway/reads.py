@@ -66,6 +66,7 @@ class ReadOperations(GatewayBase):
         return AccountData(
             user_id=actor.id,
             username=actor.username,
+            site=self.config.site,
             expected_user_id=self.config.expected_user_id,
             expected_username=self.config.expected_username,
             binding_state=("bound" if self.config.expected_user_id is not None else "unbound_reads_only"),
@@ -233,6 +234,7 @@ class ReadOperations(GatewayBase):
         query: str | None,
         cursor: str | None,
     ) -> ProjectDiscoveryData:
+        self._require_project_exchange("projects")
         normalized_categories = sorted(set(category_ids or []))
         if len(normalized_categories) > 100:
             raise GatewayError(
@@ -959,6 +961,7 @@ class ReadOperations(GatewayBase):
         return ItemCollection[CategoryRecord](items=[self._category_record(category) for category in categories])
 
     async def list_favorite_categories(self) -> RawObjectData:
+        self._require_project_exchange("favoriteCategories")
         enforce_route_params("favorite_categories", {})
         data = await self.session.call_read(
             "favorite-categories",
