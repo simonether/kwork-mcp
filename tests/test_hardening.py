@@ -113,7 +113,6 @@ def test_main_runs_stdio_without_banner_or_update_check(
     [
         ({"KWORK_STATE_DIR": "relative/state"}, "KWORK_STATE_DIR"),
         ({"KWORK_EXPECTED_USER_ID": "not-a-number"}, "KWORK_EXPECTED_USER_ID"),
-        ({}, "аккаунт Kwork не подключён"),
         (
             {
                 "KWORK_EXPECTED_USER_ID": "42",

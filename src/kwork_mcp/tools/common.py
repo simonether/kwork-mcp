@@ -57,9 +57,12 @@ ANNO_LOCAL_READ = ToolAnnotations(
 
 def gateway_from_context(ctx: Context) -> KworkGateway:
     gateway = ctx.lifespan_context.get("gateway")
-    if not isinstance(gateway, KworkGateway):
-        raise RuntimeError("gateway lifespan context is unavailable")
-    return gateway
+    if isinstance(gateway, KworkGateway):
+        return gateway
+    account_error = ctx.lifespan_context.get("account_error")
+    if isinstance(account_error, ErrorCode):
+        raise GatewayError(account_error, diagnostic="account_not_selected")
+    raise RuntimeError("gateway lifespan context is unavailable")
 
 
 def write_confirmation(writes: str) -> WriteConfirmation:

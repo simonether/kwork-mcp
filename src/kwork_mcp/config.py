@@ -19,6 +19,8 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from yarl import URL
 
+from kwork_mcp.models import ErrorCode
+
 _PERCENT_ESCAPE = re.compile(r"%[0-9A-Fa-f]{2}")
 
 
@@ -363,7 +365,16 @@ _BOUND_ACCOUNT_TOKEN = re.compile(r"account-([1-9][0-9]{0,18})\.json")
 
 
 class AccountSelectionError(ValueError):
-    """The server cannot tell which bound account to serve."""
+    """The server cannot tell which bound account to serve.
+
+    With `code` set (no account or several) the server still starts and every
+    tool answers with that error, so the agent can tell the user what to do.
+    An unreadable token store has no code and stops startup.
+    """
+
+    def __init__(self, message: str, code: ErrorCode | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def bound_account_ids(state_dir: Path) -> list[int]:
@@ -391,13 +402,15 @@ def select_bound_account(state_dir: Path) -> int:
     accounts = bound_account_ids(state_dir)
     if not accounts:
         raise AccountSelectionError(
-            f"аккаунт Kwork не подключён: выполните в терминале «uvx kwork-mcp@{__version__} login»"
+            f"аккаунт Kwork не подключён: выполните в терминале «uvx kwork-mcp@{__version__} login»",
+            ErrorCode.AUTH_REQUIRED,
         )
     if len(accounts) > 1:
         listed = ", ".join(str(account) for account in accounts)
         raise AccountSelectionError(
             f"подключено несколько аккаунтов Kwork ({listed}): укажите нужный в KWORK_EXPECTED_USER_ID "
-            "или удалите лишний вход командой «kwork-mcp logout <user_id>»"
+            "или удалите лишний вход командой «kwork-mcp logout <user_id>»",
+            ErrorCode.ACCOUNT_BINDING_REQUIRED,
         )
     return accounts[0]
 

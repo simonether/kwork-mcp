@@ -747,6 +747,7 @@ async def _run_status(rest: Sequence[str], *, stdout: TextIO, stderr: TextIO) ->
         return 2
     lines = [f"kwork-mcp {__version__}"]
     stopped = "Сервер с переменными KWORK_* этого терминала не запустится. "
+    idle = "Сервер запустится без аккаунта, инструменты ответят агенту ошибкой. "
 
     def reason(text: str) -> str:
         return text[:1].upper() + text[1:]
@@ -759,7 +760,8 @@ async def _run_status(rest: Sequence[str], *, stdout: TextIO, stderr: TextIO) ->
         account_id = cast(int, config.expected_user_id)
         record = _load_record(SecureTokenStore(config.state_dir, lock_timeout=config.auth_lock_timeout), account_id)
     except AccountSelectionError as exc:
-        stdout.write("\n".join([*lines, f"{stopped}{reason(str(exc))}."]) + "\n")
+        verdict = stopped if exc.code is None else idle
+        stdout.write("\n".join([*lines, f"{verdict}{reason(str(exc))}."]) + "\n")
         return 2
     except ValidationError as exc:
         # Same reading as the server's startup: field names, or the rule text.
@@ -782,7 +784,7 @@ async def _run_status(rest: Sequence[str], *, stdout: TextIO, stderr: TextIO) ->
         return 2
     if record is None:
         stdout.write(
-            "\n".join([*lines, f"{stopped}Для user_id {account_id} нет сохранённого входа, выполните login."]) + "\n"
+            "\n".join([*lines, f"{idle}Для user_id {account_id} нет сохранённого входа, выполните login."]) + "\n"
         )
         return 2
     explicit = any(name.upper() == "KWORK_EXPECTED_USER_ID" and value.strip() for name, value in os.environ.items())

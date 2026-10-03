@@ -24,7 +24,7 @@ import kwork_mcp
 from kwork_mcp.bootstrap import run_bootstrap_cli
 from kwork_mcp.server import create_server
 
-assert kwork_mcp.__version__ == "1.5.1"
+assert kwork_mcp.__version__ == "1.5.2"
 assert callable(run_bootstrap_cli)
 create_server()
 scripts = {
@@ -39,9 +39,9 @@ assert scripts == {
 PY
 
 "${runner[@]}" kwork-mcp-bootstrap --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp-bootstrap --version)" == "1.5.1" ]]
+[[ "$("${runner[@]}" kwork-mcp-bootstrap --version)" == "1.5.2" ]]
 "${runner[@]}" kwork-mcp --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp --version)" == "1.5.1" ]]
+[[ "$("${runner[@]}" kwork-mcp --version)" == "1.5.2" ]]
 
 set +e
 "${runner[@]}" kwork-mcp login </dev/null >login.stdout 2>login.stderr
@@ -56,7 +56,42 @@ KWORK_STATE_DIR="${smoke_dir}/state" "${runner[@]}" kwork-mcp status >status.std
 status_status="$?"
 set -e
 [[ "$status_status" -eq 2 ]]
-grep -q "kwork-mcp 1.5.1" status.stdout
+grep -q "kwork-mcp 1.5.2" status.stdout
+[[ ! -e "${smoke_dir}/state" ]]
+
+# Directory inspections start the bare server with no account: it must list the
+# tools, answer every call with auth_required and create no state.
+KWORK_STATE_DIR="${smoke_dir}/state" "${runner[@]}" python -I - <<'PY'
+import json
+import subprocess
+import sys
+
+messages = [
+    {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "smoke", "version": "0"}}},
+    {"jsonrpc": "2.0", "method": "notifications/initialized"},
+    {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+    {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "account_status", "arguments": {}}},
+]
+server = subprocess.Popen(
+    [sys.executable, "-I", "-c", "import kwork_mcp; kwork_mcp.main([])"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+    text=True,
+)
+assert server.stdin is not None and server.stdout is not None
+answers = {}
+for message in messages:
+    server.stdin.write(json.dumps(message) + "\n")
+    server.stdin.flush()
+    if "id" in message:
+        answers[message["id"]] = json.loads(server.stdout.readline())
+server.stdin.close()
+server.wait(timeout=30)
+assert len(answers[2]["result"]["tools"]) == 22
+assert answers[3]["result"]["structuredContent"]["error"]["code"] == "auth_required"
+PY
 [[ ! -e "${smoke_dir}/state" ]]
 
 set +e

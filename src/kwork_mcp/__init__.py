@@ -27,15 +27,21 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(2)
     from pydantic import ValidationError
 
-    from kwork_mcp.config import AccountSelectionError, load_server_config
+    from kwork_mcp.config import AccountSelectionError, KworkConfig, load_server_config
     from kwork_mcp.server import create_server
 
     # Validator messages are static text without configured values.
+    config: KworkConfig | None
     try:
         config = load_server_config()
     except AccountSelectionError as exc:
         sys.stderr.write(f"kwork-mcp: {exc}.\n")
-        raise SystemExit(2) from None
+        if exc.code is None:
+            raise SystemExit(2) from None
+        # Start anyway: the client shows a server that exits at once as a bare
+        # failure, while every tool of a running one tells the agent the fix.
+        sys.stderr.write("kwork-mcp: сервер запущен без аккаунта, каждый инструмент вернёт эту подсказку.\n")
+        config = None
     except ValidationError as exc:
         problems = sorted(
             {

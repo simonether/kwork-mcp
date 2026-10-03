@@ -10,6 +10,7 @@ from fastmcp import FastMCP
 from loguru import logger
 
 from kwork_mcp.config import (
+    AccountSelectionError,
     KworkConfig,
     load_server_config,
     secret_server_environment_present,
@@ -19,6 +20,7 @@ from kwork_mcp.contracts import verify_upstream_contract
 from kwork_mcp.coordination import CoordinationStore
 from kwork_mcp.gateway import KworkGateway
 from kwork_mcp.middleware import SanitizedStrictInputMiddleware
+from kwork_mcp.models import ErrorCode
 from kwork_mcp.security import SecureTokenStore, configure_logging
 from kwork_mcp.session import ClientFactory, KworkSessionManager
 from kwork_mcp.tools import register_all
@@ -95,7 +97,19 @@ def create_server(
 
     @asynccontextmanager
     async def lifespan(_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
-        active_config = validate_steady_state_server_config(config or load_server_config())
+        unselected: ErrorCode | None = None
+        try:
+            active_config = validate_steady_state_server_config(config or load_server_config())
+        except AccountSelectionError as exc:
+            if exc.code is None:
+                raise
+            unselected = exc.code
+        if unselected is not None:
+            # No session and no state: each tool answers with this code until a
+            # restart after `kwork-mcp login` selects the account.
+            logger.warning("Kwork MCP started without a selected account code={}", unselected.value)
+            yield {"account_error": unselected}
+            return
         configure_logging(active_config)
         coordinator = CoordinationStore(active_config)
         session = KworkSessionManager(

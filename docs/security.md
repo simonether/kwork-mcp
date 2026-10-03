@@ -44,8 +44,10 @@ non-sticky `0777/child-0700` намеренно неприемлем.
   TTY/getpass; server не принимает их ни через argv, ни через env. CLI не выводит
   argv даже при ошибке, поэтому случайно вставленный пароль не попадёт в терминал.
 - Аккаунт подтверждает человек при `login`. Без `KWORK_EXPECTED_USER_ID` server
-  обслуживает единственный сохранённый аккаунт и отказывается запускаться, если их
-  несколько: выбор между аккаунтами всегда явный. Identity check через `get_me`
+  обслуживает единственный сохранённый аккаунт и сам не выбирает, если их
+  несколько: выбор между аккаунтами всегда явный. Без выбранного аккаунта server
+  запускается без session и на любой вызов отвечает `auth_required` или
+  `account_binding_required`, не обращаясь к Kwork. Identity check через `get_me`
   выполняется так же, как с явным ID.
 - Proxy URL допускает только `http`, `socks4` и `socks5` с явным port (то, что
   поддерживает connector); `https` и `socks5h` отклоняются. URL сохраняется как
@@ -182,7 +184,7 @@ retryable `upstream_unavailable`; `duplicate` и `permission` требуют я�
 |---|---|
 | `auth_required`, `auth_expired` | Запустить/повторить TTY bootstrap; normal server не логинится сам |
 | `auth_in_progress` | Другой process держит account auth/store lock; повторить после retry hint |
-| `account_binding_required` | Задать expected account для writes |
+| `account_binding_required` | Выбрать аккаунт: `KWORK_EXPECTED_USER_ID` или `logout` лишнего входа |
 | `account_mismatch` | Остановить write; проверить token/account |
 | `captcha` | Пройти captcha вне MCP и обновить авторизацию |
 | `permission`, `ip_blocked`, `csrf` | Проверить права, IP/proxy или web session |
