@@ -98,7 +98,7 @@ addopts = "--strict-config --strict-markers"
 timeout = 30
 
 [tool.uv]
-required-version = ">=0.11.6,<0.12"
+required-version = ">=0.11.6"
 
 [tool.coverage.run]
 branch = true
