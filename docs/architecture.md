@@ -50,14 +50,16 @@ flowchart LR
 
 ## Идентичность и сессия
 
-Production server startup принимает только stable `KWORK_EXPECTED_USER_ID` и
-account-scoped store. Record проверяется локально на scope/user ID до network, а
+Production server startup принимает только account-scoped store и stable numeric
+ID аккаунта: явный `KWORK_EXPECTED_USER_ID` или, если он не задан, единственный
+аккаунт, для которого `kwork-mcp login` сохранил token (`tokens/account-<id>.json`).
+Несколько сохранённых аккаунтов без явного ID и ни одного — отказ запуска с exit `2`. Record проверяется локально на scope/user ID до network, а
 token подтверждается через `get_me`. Rejected token запоминается по hash на срок
 session и не проверяется циклически; другой token, записанный bootstrap/peer
 процессом, может быть принят после своей identity check. Username в record —
 обновляемая metadata, numeric ID — primary identity.
 
-Fresh password login и legacy import существуют только в отдельном TTY bootstrap.
+Fresh password login и legacy import существуют только в TTY-команде `kwork-mcp login` (bootstrap).
 Bootstrap берёт lock в порядке `account writer → credential flock`, участвует в
 shared route limiter/circuit для `signIn`/`actor`, не удаляет старый record до
 успешной проверки и сохраняет optional proxy вместе с token. Normal server не
@@ -68,14 +70,14 @@ shared route limiter/circuit для `signIn`/`actor`, не удаляет ста
 peer rotation не могут незаметно переключить MCP на другой account. Writes требуют:
 
 1. `KWORK_ENABLE_WRITES=true`;
-2. `KWORK_EXPECTED_USER_ID`;
+2. привязанный аккаунт (`KWORK_EXPECTED_USER_ID` или единственный сохранённый);
 3. соответствие свежего `get_me` ожидаемому ID;
 4. соответствие `KWORK_EXPECTED_USERNAME`, если он задан.
 
 Проверка повторяется и на `prepare_write`, и непосредственно перед remote write.
 Граница едина для console entrypoint и публичного `create_server(config=...)`:
 оба fail-closed отклоняют token/login/password/phone/proxy и требуют
-`EXPECTED_USER_ID + PERSIST_TOKEN=true`. Bootstrap использует отдельную
+привязанный аккаунт и `PERSIST_TOKEN=true`. Bootstrap использует отдельную
 конфигурацию/функцию и не может быть случайно включён через MCP factory. Console
 entrypoint валидирует конфигурацию в `main()` до создания server (exit `2` с
 именами некорректных `KWORK_*`) и запускает FastMCP с `show_banner=False`, т.е. без
@@ -187,7 +189,7 @@ write: ошибка `ambiguous_write` содержит `related_write_id`, а
 `account_status.unresolved_write_ids` перечисляет блокирующие записи. Отсутствие
 side effect становится терминальным только после нескольких полных наблюдений,
 разделённых visibility interval. Если read-back не сходится, оператор фиксирует
-проверенный на сайте Kwork исход командой `kwork-mcp-bootstrap resolve-write`.
+проверенный на сайте Kwork исход командой `kwork-mcp resolve-write`.
 Если сохранение подтверждённого remote outcome локально не удалось, gateway
 пытается атомарно сохранить `submission_unknown`; при полной недоступности ledger
 возвращается typed `ambiguous_write`, а истёкший committing lease восстанавливается

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 import json
 import re
 import tomllib
 from pathlib import Path
+from urllib.parse import unquote
 
 from kwork_mcp.config import SERVER_SECRET_ENV_NAMES
 from kwork_mcp.version import __version__
@@ -20,7 +22,9 @@ def test_registry_metadata_advertises_only_safe_server_environment() -> None:
     assert len(variables) == len(by_name) == 25
     assert set(by_name).isdisjoint(SERVER_SECRET_ENV_NAMES)
     assert all(item["isSecret"] is False for item in variables)
-    assert by_name["KWORK_EXPECTED_USER_ID"]["isRequired"] is True
+    # `kwork-mcp login` binds the account; the ID is needed only to pick one of several.
+    assert by_name["KWORK_EXPECTED_USER_ID"]["isRequired"] is False
+    assert not any(item["isRequired"] for item in variables)
     assert by_name["KWORK_PERSIST_TOKEN"]["default"] == "true"
     assert by_name["KWORK_AUTH_LOCK_TIMEOUT"]["default"] == "90"
     assert by_name["KWORK_SITE"]["default"] == "ru"
@@ -34,11 +38,7 @@ def test_example_environment_has_no_active_secret_assignment() -> None:
         if line.strip() and not line.lstrip().startswith("#") and "=" in line
     }
     assert active_names.isdisjoint(SERVER_SECRET_ENV_NAMES)
-    assert {
-        "KWORK_EXPECTED_USER_ID",
-        "KWORK_PERSIST_TOKEN",
-        "KWORK_ENABLE_WRITES",
-    } <= active_names
+    assert {"KWORK_PERSIST_TOKEN", "KWORK_ENABLE_WRITES"} <= active_names
 
 
 def test_versions_and_console_entrypoints_are_consistent() -> None:
@@ -46,7 +46,7 @@ def test_versions_and_console_entrypoints_are_consistent() -> None:
     registry = json.loads((ROOT / "server.json").read_text())
 
     assert project["dynamic"] == ["version"]
-    assert registry["version"] == __version__ == "1.3.0"
+    assert registry["version"] == __version__ == "1.4.0"
     assert registry["packages"][0]["version"] == __version__
     assert project["scripts"] == {
         "kwork-mcp": "kwork_mcp:main",
@@ -57,7 +57,13 @@ def test_versions_and_console_entrypoints_are_consistent() -> None:
 def test_install_instructions_pin_the_current_version() -> None:
     for name in ("README.md", "site/index.html"):
         text = (ROOT / name).read_text()
-        assert set(re.findall(r"kwork-mcp==([0-9A-Za-z.]+)", text)) == {__version__}, name
+        assert set(re.findall(r"kwork-mcp(?:==|@)([0-9][0-9A-Za-z.]*)", text)) == {__version__}, name
+        # The "Add to Cursor" link carries its own base64 copy of the config.
+        configs = re.findall(r"install-mcp\?name=kwork&(?:amp;)?config=([A-Za-z0-9+/%=]+)", text)
+        assert configs, name
+        for encoded in configs:
+            config = json.loads(base64.b64decode(unquote(encoded)))
+            assert config == {"command": "uvx", "args": [f"kwork-mcp@{__version__}"]}, name
 
     site = (ROOT / "site" / "index.html").read_text()
     assert f'"softwareVersion": "{__version__}"' in site

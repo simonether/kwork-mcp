@@ -569,7 +569,7 @@ async def test_bootstrap_cli_does_not_resolve_a_settled_write(
     ("env", "expected_code", "expected_message"),
     [
         ({"KWORK_STATE_DIR": "relative/state"}, 2, "KWORK_STATE_DIR"),
-        ({}, 1, "account_binding_required"),
+        ({}, 2, "аккаунт Kwork не подключён"),
     ],
 )
 async def test_bootstrap_cli_write_admin_requires_valid_binding(

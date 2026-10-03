@@ -5,6 +5,30 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-03
+
+### Added
+
+- `kwork-mcp login`: вход в Kwork теперь запускается из того же пакета, что и
+  сервер, например `uvx kwork-mcp@1.4.0 login`. Там же работают
+  `kwork-mcp pending-writes` и `kwork-mcp resolve-write`; без аргументов
+  `kwork-mcp` по-прежнему запускает MCP-сервер. Прежняя команда
+  `kwork-mcp-bootstrap` продолжает работать.
+- В конце входа печатаются готовые команды `claude mcp add` и `codex mcp add` с
+  уже подставленными настройками вместо JSON с переменными окружения.
+
+### Changed
+
+- `KWORK_EXPECTED_USER_ID` больше не обязателен. Если вход выполнен для одного
+  аккаунта, сервер работает с ним; это аккаунт, который вы подтвердили при входе.
+  Если привязано несколько аккаунтов, сервер не запустится и попросит указать
+  нужный в `KWORK_EXPECTED_USER_ID`. Подключение сводится к
+  `claude mcp add kwork --scope user -- uvx kwork-mcp@1.4.0`.
+- README и сайт показывают короткие команды и кнопку «Add to Cursor»; поле для
+  ввода `user_id` на сайте убрано.
+- Сообщения об ошибках запуска и входа переведены на русский; неизвестная
+  команда не выводит переданные аргументы.
+
 ## [1.3.0] - 2026-10-02
 
 ### Changed
@@ -203,7 +227,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.4.0
 [1.3.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.3.0
 [1.2.1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.1
 [1.2.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.0

@@ -24,7 +24,7 @@ import kwork_mcp
 from kwork_mcp.bootstrap import run_bootstrap_cli
 from kwork_mcp.server import create_server
 
-assert kwork_mcp.__version__ == "1.3.0"
+assert kwork_mcp.__version__ == "1.4.0"
 assert callable(run_bootstrap_cli)
 create_server()
 scripts = {
@@ -39,7 +39,16 @@ assert scripts == {
 PY
 
 "${runner[@]}" kwork-mcp-bootstrap --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp-bootstrap --version)" == "1.3.0" ]]
+[[ "$("${runner[@]}" kwork-mcp-bootstrap --version)" == "1.4.0" ]]
+"${runner[@]}" kwork-mcp --help >/dev/null
+[[ "$("${runner[@]}" kwork-mcp --version)" == "1.4.0" ]]
+
+set +e
+"${runner[@]}" kwork-mcp login </dev/null >login.stdout 2>login.stderr
+login_status="$?"
+set -e
+[[ "$login_status" -eq 2 ]]
+[[ ! -s login.stdout ]]
 
 set +e
 "${runner[@]}" kwork-mcp-bootstrap </dev/null >bootstrap.stdout 2>bootstrap.stderr

@@ -11,6 +11,7 @@ from loguru import logger
 
 from kwork_mcp.config import (
     KworkConfig,
+    load_server_config,
     secret_server_environment_present,
     validate_steady_state_server_config,
 )
@@ -43,16 +44,14 @@ def create_server(
 
     if config is None:
         if secret_server_environment_present():
-            raise RuntimeError(
-                "secret-bearing environment is forbidden for the normal MCP server; use kwork-mcp-bootstrap"
-            )
+            raise RuntimeError("secret-bearing environment is forbidden for the normal MCP server; use kwork-mcp login")
     else:
         validate_steady_state_server_config(config)
     verify_upstream_contract()
 
     @asynccontextmanager
     async def lifespan(_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
-        active_config = validate_steady_state_server_config(config or KworkConfig())
+        active_config = validate_steady_state_server_config(config or load_server_config())
         configure_logging(active_config)
         coordinator = CoordinationStore(active_config)
         session = KworkSessionManager(

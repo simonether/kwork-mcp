@@ -12,7 +12,7 @@ import re
 import unicodedata
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 from urllib.parse import unquote, urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -144,7 +144,7 @@ def validate_steady_state_server_config(config: KworkConfig) -> KworkConfig:
     if config.token_value or config.login or config.password_value or config.phone_last_value or config.proxy_value:
         raise ValueError("secret-bearing configuration is forbidden for the normal MCP server; use kwork-mcp-bootstrap")
     if config.expected_user_id is None or not config.persist_token:
-        raise ValueError("normal MCP server requires KWORK_EXPECTED_USER_ID and KWORK_PERSIST_TOKEN=true")
+        raise ValueError("сервер работает только с привязанным аккаунтом и KWORK_PERSIST_TOKEN=true")
     return config
 
 
@@ -274,7 +274,7 @@ class KworkConfig(BaseSettings):
             and not self.fresh_credentials_available
             and (self.expected_user_id is None or not self.persist_token)
         ):
-            raise ValueError("credentialless startup requires KWORK_EXPECTED_USER_ID and KWORK_PERSIST_TOKEN=true")
+            raise ValueError("запуск без логина и пароля требует KWORK_EXPECTED_USER_ID и KWORK_PERSIST_TOKEN=true")
         return self
 
     def _validate_common_options(self) -> None:
@@ -359,3 +359,68 @@ class KworkConfig(BaseSettings):
     @property
     def fresh_credentials_available(self) -> bool:
         return bool(self.login and self.password_value)
+
+
+_BOUND_ACCOUNT_TOKEN = re.compile(r"account-([1-9][0-9]{0,18})\.json")
+
+
+class AccountSelectionError(ValueError):
+    """The server cannot tell which bound account to serve."""
+
+
+def bound_account_ids(state_dir: Path) -> list[int]:
+    """IDs of the accounts that `kwork-mcp login` stored a token for, ascending.
+
+    Only file names are read here. The token store checks ownership and modes
+    when it loads the selected record, and the session verifies the identity
+    against Kwork, so a stray file can at most select an account that fails.
+    """
+
+    try:
+        names = [entry.name for entry in (state_dir / "tokens").iterdir()]
+    except (FileNotFoundError, NotADirectoryError):
+        return []
+    except OSError as exc:
+        raise AccountSelectionError(f"не удалось прочитать хранилище токенов ({type(exc).__name__})") from None
+    return sorted(int(match.group(1)) for name in names if (match := _BOUND_ACCOUNT_TOKEN.fullmatch(name)))
+
+
+def select_bound_account(state_dir: Path) -> int:
+    """The only bound account; several or none need an explicit choice."""
+
+    from kwork_mcp.version import __version__
+
+    accounts = bound_account_ids(state_dir)
+    if not accounts:
+        raise AccountSelectionError(
+            f"аккаунт Kwork не подключён: выполните в терминале «uvx kwork-mcp@{__version__} login»"
+        )
+    if len(accounts) > 1:
+        listed = ", ".join(str(account) for account in accounts)
+        raise AccountSelectionError(
+            f"подключено несколько аккаунтов Kwork ({listed}): укажите нужный в KWORK_EXPECTED_USER_ID"
+        )
+    return accounts[0]
+
+
+class _UnresolvedServerEnvironment(KworkConfig):
+    """The environment as read before the account is known; rules run afterwards."""
+
+    @model_validator(mode="after")
+    def validate_auth_and_legacy_options(self) -> Self:
+        return self
+
+
+def load_server_config() -> KworkConfig:
+    """Read the server configuration, serving the single bound account by default.
+
+    The account was confirmed by a human during `kwork-mcp login`, so with one
+    stored token KWORK_EXPECTED_USER_ID only repeats that choice. With several
+    tokens the server refuses to guess.
+    """
+
+    environment = _UnresolvedServerEnvironment()
+    if environment.expected_user_id is not None:
+        return validate_steady_state_server_config(KworkConfig())
+    account_id = select_bound_account(environment.state_dir)
+    return validate_steady_state_server_config(KworkConfig(expected_user_id=account_id))

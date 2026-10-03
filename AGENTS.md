@@ -12,15 +12,16 @@ durable `prepare → commit → reconcile` write protocol) on FastMCP 4 / MCP SD
 - `uv run python -m pytest tests/ -q` — tests
 - `uv run python -m pytest tests/ -q --cov=kwork_mcp --cov-report=term-missing` — tests + coverage (gate: 92% branch)
 - `uv run kwork-mcp` — start the server (stdio); needs a bootstrapped account
-- `uv run kwork-mcp-bootstrap` — human TTY CLI: account auth, `pending-writes`, `resolve-write`
+- `uv run kwork-mcp login` — human TTY CLI: account auth; also `pending-writes`, `resolve-write`
+  (`kwork-mcp-bootstrap` is the old alias)
 
 ## Project map
 
 ```
 src/kwork_mcp/
-  __init__.py       main(): rejects argv/secret env, validates config, runs stdio without banner
-  bootstrap.py      kwork-mcp-bootstrap: TTY auth → account-bound credential store; operator write resolution
-  config.py         KworkConfig (pydantic-settings, KWORK_ prefix), proxy validation, redaction secrets
+  __init__.py       main(): bare command = stdio server (rejects secret env, no banner); args → terminal CLI
+  bootstrap.py      terminal CLI: login (TTY auth → account-bound store, prints client commands), write resolution
+  config.py         KworkConfig (pydantic-settings, KWORK_ prefix), bound-account selection, proxy validation
   server.py         create_server(): FastMCP app, lifespan, SERVER_INSTRUCTIONS, unknown-tool guard
   session.py        KworkSessionManager: lazy auth, account identity checks, call_read / call_write_step
   coordination.py   CoordinationStore: shared SQLite — rate limits, circuits, cursors, write ledger, writer lock
@@ -48,9 +49,12 @@ site/               GitHub Pages landing page (Russian), deployed by .github/wor
 
 ## Architecture
 
-- **Secretless steady state.** The server accepts only safe env (`KWORK_EXPECTED_USER_ID`,
-  `KWORK_PERSIST_TOKEN=true`, `KWORK_ENABLE_WRITES`, limits, `KWORK_STATE_DIR`). Login, password,
-  token, phone and proxy go only through `kwork-mcp-bootstrap` into the account store.
+- **Secretless steady state.** The server accepts only safe env (`KWORK_PERSIST_TOKEN=true`,
+  `KWORK_ENABLE_WRITES`, limits, `KWORK_STATE_DIR`, optional `KWORK_EXPECTED_USER_ID`). Login,
+  password, token, phone and proxy go only through `kwork-mcp login` into the account store.
+- **Account selection.** Without `KWORK_EXPECTED_USER_ID` the server serves the single account
+  that login stored a token for (`load_server_config`); none or several stop startup with exit 2.
+  The CLI never echoes argv.
 - **Tools** get the gateway via `gateway_from_context(ctx)` and return a `ResultEnvelope` through
   `success()` / `failure()` / `unexpected_failure()`; `knowledge_state` is `known_data`,
   `known_empty` or `unknown_error`.

@@ -27,6 +27,7 @@ from kwork_mcp.security import (
     read_private_secret_file,
 )
 from kwork_mcp.session import KworkSessionManager
+from kwork_mcp.version import __version__
 
 
 class AuthClient:
@@ -239,7 +240,7 @@ def test_credentialless_config_requires_stable_persisted_scope(tmp_path: Path) -
         {"expected_user_id": None},
         {"persist_token": False},
     ):
-        with pytest.raises(ValidationError, match="credentialless startup"):
+        with pytest.raises(ValidationError, match="запуск без логина и пароля"):
             credentialless_config(tmp_path / f"invalid-{len(overrides)}", **overrides)
 
 
@@ -800,18 +801,12 @@ async def test_bootstrap_cli_uses_tty_only_and_ignores_inherited_secrets(
     assert received[0].token_value == ""
     assert received[0].proxy_value is None
     assert received[0].enable_writes is False
-    payload = json.loads(stdout.getvalue())
-    assert payload == {
-        "account": {"user_id": 42, "username": "verified-user"},
-        "credential_store": "account_scoped_token",
-        "environment": {
-            "KWORK_ENABLE_WRITES": "false",
-            "KWORK_EXPECTED_USER_ID": "42",
-            "KWORK_PERSIST_TOKEN": "true",
-        },
-        "schema_version": "1.0",
-        "verified": True,
-    }
+    output = stdout.getvalue()
+    assert output.splitlines()[0] == "Аккаунт verified-user (user_id 42) подключён."
+    server = f"-- uvx kwork-mcp@{__version__}"
+    assert f"claude mcp add kwork --scope user -e KWORK_STATE_DIR={state_dir} {server}" in output
+    assert f"codex mcp add kwork --env KWORK_STATE_DIR={state_dir} {server}" in output
+    assert "KWORK_ENABLE_WRITES" not in output
     combined_output = stdout.getvalue() + stderr.getvalue()
     for secret in (
         "inherited-token-sentinel",
@@ -875,8 +870,7 @@ async def test_bootstrap_cli_validates_and_imports_legacy_token_explicitly(
     assert client.get_me_calls == 1
     assert received[0].token_value == "legacy-token-sentinel"
     assert received[0].proxy_value == "socks5://proxy-user:proxy-pass@proxy.example:1080"
-    payload = json.loads(stdout.getvalue())
-    assert payload["legacy_file_retained"] is True
+    assert "~/.kwork_token не удалён" in stdout.getvalue()
     assert legacy_path.read_text() == "legacy-token-sentinel\n"
     combined_output = stdout.getvalue() + stderr.getvalue()
     assert "legacy-token-sentinel" not in combined_output
@@ -965,7 +959,7 @@ async def test_bootstrap_cli_rejects_non_tty_and_unknown_argv_without_reflection
     [
         (["--help"], "kwork-mcp-bootstrap"),
         (["-h"], "kwork-mcp-bootstrap"),
-        (["--version"], "1.3.0"),
+        (["--version"], "1.4.0"),
     ],
 )
 async def test_bootstrap_help_and_version_need_no_tty_or_configuration(

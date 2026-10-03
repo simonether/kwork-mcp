@@ -265,10 +265,11 @@ async def test_bootstrap_environment_carries_a_non_default_site(
     code, stdout, _stderr = await _run(tmp_path, confirmation="да\n", clients=[], configs=configs)
 
     assert code == 0
-    environment = json.loads(stdout)["environment"]
     if site is None:
-        assert "KWORK_SITE" not in environment
+        assert "KWORK_SITE" not in stdout
+        assert "claude mcp add kwork --scope user " in stdout
         assert configs[-1].api_host == "https://api.kwork.ru/{}"
     else:
-        assert environment["KWORK_SITE"] == site
+        assert f"claude mcp add kwork-{site} --scope user -e KWORK_SITE={site} " in stdout
+        assert f"codex mcp add kwork-{site} --env KWORK_SITE={site} " in stdout
         assert all(config.api_host == "https://api.kwork.com/{}" for config in configs)

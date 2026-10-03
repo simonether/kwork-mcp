@@ -894,46 +894,6 @@ h3 {
   color: var(--code-dim);
   user-select: none;
 }
-.ph {
-  color: var(--code-ph);
-  border-bottom: 1px dotted currentColor;
-}
-.ph.is-set {
-  border-bottom-style: solid;
-}
-.uid {
-  display: grid;
-  gap: 6px;
-  max-width: 22em;
-  margin: 0 0 18px;
-}
-.uid label {
-  font-weight: 600;
-  font-size: 0.9375rem;
-}
-.uid input {
-  min-height: 48px;
-  padding: 0 2px;
-  border: 0;
-  border-bottom: 2px solid var(--rule);
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--mono);
-  font-size: 1.125rem;
-}
-.uid input::placeholder {
-  color: var(--ink-3);
-  opacity: 0.6;
-}
-.uid input:focus-visible {
-  outline: 0;
-  border-bottom-color: var(--stamp);
-}
-.uid small {
-  color: var(--ink-3);
-  font-size: 0.8125rem;
-}
 .tabs [role="tablist"] {
   display: flex;
   flex-wrap: wrap;
