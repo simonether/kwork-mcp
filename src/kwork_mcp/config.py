@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import sys
 import unicodedata
 from collections.abc import Mapping
 from pathlib import Path
@@ -25,9 +26,21 @@ _PERCENT_ESCAPE = re.compile(r"%[0-9A-Fa-f]{2}")
 
 
 def _default_state_dir() -> Path:
-    base = os.environ.get("XDG_STATE_HOME")
-    if base:
-        return Path(base).expanduser() / "kwork-mcp"
+    # Windows keeps it in the profile as well, not in AppData: packaged (MSIX)
+    # apps such as Claude Desktop see their own copy of AppData, so the server
+    # they start and the terminal would keep separate state.
+    xdg = os.environ.get("XDG_STATE_HOME") if sys.platform != "win32" else None
+    base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "state"
+    return base / "kwork-mcp"
+
+
+def client_default_state_dir() -> Path:
+    """The state directory of a server that an MCP client starts without KWORK_STATE_DIR.
+
+    Clients pass servers a trimmed environment without XDG_STATE_HOME; the
+    home directory (USERPROFILE on Windows) is always there.
+    """
+
     return Path.home() / ".local" / "state" / "kwork-mcp"
 
 

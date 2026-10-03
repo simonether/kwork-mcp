@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import fcntl
 import json
 import math
 import os
@@ -18,12 +17,13 @@ from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, cast
 
 from loguru import logger
 from pydantic import BaseModel, JsonValue
 
+from kwork_mcp import private_fs
 from kwork_mcp.config import (
     KworkConfig,
     canonicalize_percent_escape_case,
@@ -271,6 +271,82 @@ def _resolve_trusted_state_aliases(path: Path) -> Path:
 
 
 def ensure_secure_directory(path: Path) -> Path:
+    """Create a private state directory, or check an existing one, and return its path."""
+
+    if sys.platform == "win32":
+        directory = _ensure_secure_windows_directory(path)
+    else:
+        directory = _ensure_secure_posix_directory(path)
+    return directory
+
+
+def _ensure_secure_windows_directory(path: Path) -> Path:  # pragma: no cover - Windows only
+    """Create missing components owner-only and check the final directory.
+
+    Windows cannot open a directory as a file descriptor, so the POSIX
+    fd-anchored walk has no counterpart. Every component this creates gets an
+    owner-only protected DACL; the final directory must not be a junction or
+    symlink, and its owner and DACL must be private. Directories above it
+    outside the user's profile must not let anyone else rename or
+    re-permission them, as POSIX rejects shared-writable ancestors; Windows
+    itself keeps the profile and the directories above it closed.
+    """
+
+    raw = os.fspath(path)
+    if (
+        not path.is_absolute()
+        or "\x00" in raw
+        or contains_unsafe_text_codepoint(raw)
+        or ".." in path.parts
+        or private_fs.windows_path_is_ambiguous(PureWindowsPath(raw))
+    ):
+        raise _security_error("state_directory_path_invalid")
+    profile = _windows_profile()
+
+    def check_ancestor(directory: Path, *, root: bool) -> None:
+        if profile is not None and (
+            directory == profile or profile in directory.parents or directory in profile.parents
+        ):
+            return
+        problem = private_fs.ancestor_problem(directory, root=root)
+        if problem is not None:
+            raise _security_error(f"state_directory_{problem}")
+
+    current = Path(path.anchor)
+    check_ancestor(current, root=True)
+    components = path.parts[1:]
+    for index, component in enumerate(components):
+        current = current / component
+        final = index == len(components) - 1
+        try:
+            try:
+                info = current.lstat() if final else current.stat()
+            except FileNotFoundError:
+                with contextlib.suppress(FileExistsError):
+                    private_fs.create_private_directory(current)
+                info = current.lstat() if final else current.stat()
+        except OSError as exc:
+            raise _security_error(f"state_directory_chain_error:{type(exc).__name__}") from exc
+        if final and private_fs.is_link(info):
+            raise _security_error("state_directory_final_symlink")
+        if not stat.S_ISDIR(info.st_mode):
+            raise _security_error("state_directory_component_not_directory")
+        if not final:
+            check_ancestor(current, root=False)
+    problem = private_fs.directory_problem(path)
+    if problem is not None:
+        raise _security_error(f"state_directory_{problem}")
+    return path
+
+
+def _windows_profile() -> Path | None:  # pragma: no cover - Windows only
+    try:
+        return Path.home()
+    except RuntimeError:
+        return None
+
+
+def _ensure_secure_posix_directory(path: Path) -> Path:
     """Create a private directory through a trusted, fd-anchored ancestor chain."""
 
     canonical = _resolve_trusted_state_aliases(path)
@@ -349,12 +425,11 @@ def _validate_private_file(path: Path, *, allow_missing: bool = True) -> os.stat
         raise
     except OSError as exc:
         raise _security_error(f"private_file_error:{type(exc).__name__}") from exc
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+    if private_fs.is_link(info) or not stat.S_ISREG(info.st_mode):
         raise _security_error("private_file_not_regular")
-    if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
-        raise _security_error("private_file_wrong_owner")
-    if stat.S_IMODE(info.st_mode) != 0o600:
-        raise _security_error("private_file_permissions_must_be_0600")
+    problem = private_fs.file_problem(info, path=path)
+    if problem is not None:
+        raise _security_error(f"private_file_{problem}")
     return info
 
 
@@ -366,7 +441,7 @@ def read_private_secret_file(path: Path, *, max_bytes: int = 4096) -> str | None
         return None
     if info.st_size > max_bytes:
         raise _security_error("private_secret_file_too_large")
-    flags = os.O_RDONLY
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     fd = -1
@@ -375,8 +450,7 @@ def read_private_secret_file(path: Path, *, max_bytes: int = 4096) -> str | None
         opened = os.fstat(fd)
         if (
             not stat.S_ISREG(opened.st_mode)
-            or stat.S_IMODE(opened.st_mode) != 0o600
-            or (hasattr(os, "geteuid") and opened.st_uid != os.geteuid())
+            or private_fs.file_problem(opened, fd=fd) is not None
             or opened.st_dev != info.st_dev
             or opened.st_ino != info.st_ino
         ):
@@ -478,8 +552,14 @@ class TokenRecord:
         )
 
 
+def _token_seal_purpose(scope: str) -> str:
+    # Binds a sealed record to its account: a file copied to another
+    # account's name fails to open.
+    return f"kwork-mcp token {scope}"
+
+
 class SecureTokenStore:
-    """Account-scoped token files guarded by an interprocess flock."""
+    """Account-scoped token files guarded by an interprocess lock."""
 
     def __init__(self, state_dir: Path, *, lock_timeout: float = 20.0) -> None:
         self._state_dir = ensure_secure_directory(state_dir)
@@ -512,18 +592,17 @@ class SecureTokenStore:
             except FileExistsError:
                 fd = os.open(lock_path, open_flags)
             else:
-                os.fchmod(fd, 0o600)
+                private_fs.restrict_file(fd)
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode):
                 raise _security_error("token_lock_not_regular")
-            if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
-                raise _security_error("token_lock_wrong_owner")
-            if stat.S_IMODE(info.st_mode) != 0o600:
-                raise _security_error("token_lock_permissions_must_be_0600")
+            problem = private_fs.file_problem(info, fd=fd)
+            if problem is not None:
+                raise _security_error(f"token_lock_{problem}")
             deadline = time.monotonic() + self._lock_timeout
             while True:
                 try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    private_fs.try_lock(fd)
                     break
                 except BlockingIOError as exc:
                     if time.monotonic() >= deadline:
@@ -548,7 +627,7 @@ class SecureTokenStore:
     @staticmethod
     def release_lock(fd: int) -> None:
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            private_fs.unlock(fd)
         finally:
             os.close(fd)
 
@@ -559,7 +638,7 @@ class SecureTokenStore:
             return None
         if info.st_size > 65_536:
             raise _security_error("token_file_too_large")
-        flags = os.O_RDONLY
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
         fd = -1
@@ -568,16 +647,22 @@ class SecureTokenStore:
             opened = os.fstat(fd)
             if (
                 not stat.S_ISREG(opened.st_mode)
-                or stat.S_IMODE(opened.st_mode) != 0o600
-                or (hasattr(os, "geteuid") and opened.st_uid != os.geteuid())
+                or private_fs.file_problem(opened, fd=fd) is not None
                 or opened.st_dev != info.st_dev
                 or opened.st_ino != info.st_ino
             ):
                 raise _security_error("token_file_changed_during_open")
-            handle = os.fdopen(fd, encoding="utf-8")
+            handle = os.fdopen(fd, "rb")
             fd = -1
             with handle:
-                payload = json.load(handle)
+                sealed = handle.read()
+            try:
+                plain = private_fs.unseal(sealed, purpose=_token_seal_purpose(scope))
+            except OSError as exc:  # pragma: no cover - only DPAPI can fail here
+                # Another Windows user, a reset password or a moved profile:
+                # only a new login can replace the record.
+                raise GatewayError(ErrorCode.AUTH_EXPIRED, diagnostic="token_sealed_for_another_user") from exc
+            payload = json.loads(plain.decode("utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError, TypeError) as exc:
             raise _security_error(f"invalid_token_file:{type(exc).__name__}") from exc
         finally:
@@ -616,12 +701,16 @@ class SecureTokenStore:
         self._validate_scope_record(scope, record)
         target = self._token_path(scope)
         _validate_private_file(target)
-        payload = json.dumps(
+        encoded = json.dumps(
             asdict(record),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         ).encode()
+        try:
+            payload = private_fs.seal(encoded, purpose=_token_seal_purpose(scope))
+        except OSError as exc:  # pragma: no cover - only DPAPI can fail here
+            raise _security_error(f"token_seal_error:{type(exc).__name__}") from exc
         if len(payload) > 65_536:
             raise _security_error("token_record_too_large")
         temp_fd = -1
@@ -629,7 +718,7 @@ class SecureTokenStore:
         replaced = False
         try:
             temp_fd, temp_name = tempfile.mkstemp(prefix=".token-", dir=self._directory)
-            os.fchmod(temp_fd, 0o600)
+            private_fs.restrict_file(temp_fd)
             view = memoryview(payload)
             while view:
                 written = os.write(temp_fd, view)
@@ -639,13 +728,9 @@ class SecureTokenStore:
             os.fsync(temp_fd)
             os.close(temp_fd)
             temp_fd = -1
-            os.replace(temp_name, target)
+            private_fs.replace(temp_name, target)
             replaced = True
-            directory_fd = os.open(self._directory, os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+            private_fs.fsync_directory(self._directory)
             _validate_private_file(target, allow_missing=False)
         except GatewayError as exc:
             if replaced:
@@ -667,8 +752,9 @@ class SecureTokenStore:
             if temp_fd >= 0:
                 os.close(temp_fd)
             if temp_name:
-                with contextlib.suppress(FileNotFoundError):
-                    os.unlink(temp_name)
+                # A failed cleanup must not replace the error being raised.
+                with contextlib.suppress(OSError):
+                    private_fs.unlink(Path(temp_name))
 
     def _validate_scope_record(self, scope: str, record: TokenRecord) -> None:
         safe_scope = self._safe_name(scope)
@@ -684,12 +770,8 @@ class SecureTokenStore:
         if _validate_private_file(path) is None:
             return
         try:
-            path.unlink()
-            directory_fd = os.open(self._directory, os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+            private_fs.unlink(path)
+            private_fs.fsync_directory(self._directory)
         except OSError as exc:
             raise _security_error(f"token_delete_error:{type(exc).__name__}") from exc
 

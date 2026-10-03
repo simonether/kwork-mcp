@@ -98,7 +98,7 @@ Codex/Claude MCP configuration, даже если host помечает их к�
 | Переменная | Default | Ограничения |
 |---|---:|---|
 | `KWORK_TIMEOUT` | `30` | 1–120 секунд |
-| `KWORK_STATE_DIR` | XDG/`~/.local/state/kwork-mcp` | Только абсолютный путь |
+| `KWORK_STATE_DIR` | XDG/`~/.local/state/kwork-mcp`; Windows: `%USERPROFILE%\.local\state\kwork-mcp` | Только абсолютный путь |
 | `KWORK_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
 `KWORK_TOKEN_FILE` удалён и намеренно вызывает ошибку конфигурации. Один общий
@@ -108,14 +108,16 @@ owner/mode/regular-file/no-symlink и обязательного `get_me`. Serve
 legacy-файл не читает и автоматически не импортирует. После validated import
 legacy source сохраняется; удалите его вручную только после проверки нового flow.
 
-State directory должен принадлежать текущему OS user и иметь exact mode `0700`.
+На Linux/macOS state directory должен принадлежать текущему OS user и иметь exact
+mode `0700`.
 Проверяется вся physical ancestor chain: допустимы только root/current-owner
 каталоги без group/other write. Один sticky shared temp boundary разрешён, но
 обычный `0777` parent, вложенный shared boundary, чужой owner, final symlink и
 special bits отклоняются. Trusted non-final aliases раскрываются по одному hop с
 повторной проверкой, а missing components открываются через FD-relative
 `O_NOFOLLOW`, поэтому alias target/race не может скрыть writable ancestor.
-`coordination.sqlite3`, credential/lock files должны иметь `0600`. Account record
+`coordination.sqlite3`, credential/lock files должны иметь `0600` (Windows-правила
+ниже). Account record
 содержит verified token и optional proxy URL.
 Legacy record без proxy означает direct connection. Record с `https` proxy или без
 явного port (такой proxy не работал и в 1.0.0rc1) при загрузке отклоняется как
@@ -123,9 +125,26 @@ Legacy record без proxy означает direct connection. Record с `https`
 удалить proxy, остановите процессы account/state, повторите login и
 перезапустите MCP; уже открытый client record не перечитывает. Не размещайте общий
 state на NFS или другом filesystem без надёжных POSIX locks/SQLite semantics.
-Production runtime использует `fcntl`/`flock` и поддерживает Linux/macOS, но не
-Windows. ACL/MAC/mount policy не должны давать другим principals write вопреки
-mode bits; при сомнении используйте отдельный local private volume.
+На Linux/macOS runtime использует `fcntl`/`flock`. ACL/MAC/mount policy не должны
+давать другим principals write вопреки mode bits; при сомнении используйте
+отдельный local private volume.
+
+На Windows mode bits не действуют, и вместо них проверяются owner и DACL.
+Default state directory — `%USERPROFILE%\.local\state\kwork-mcp`, `XDG_STATE_HOME` не учитывается. Не
+`%LOCALAPPDATA%`: упакованные (MSIX) приложения вроде Claude Desktop видят свою
+копию AppData, и сервер, запущенный клиентом, разошёлся бы с терминалом.
+Gateway создаёт недостающие каталоги с доступом только для текущего user и
+SYSTEM. Существующий каталог принимается, если его owner — текущий user, SYSTEM
+или Administrators и DACL не пускает никого другого. Каталог, созданный вручную в
+корне диска, обычно наследует `Authenticated Users: Modify` и отклоняется как
+`state_directory_acl_not_private`: укажите несуществующий путь, gateway создаст его
+сам. Для пути вне профиля пользователя каталоги выше не должны позволять другим
+пользователям переименовать их (`state_directory_untrusted_writable_ancestor`):
+папка в корне диска, созданная вручную, обычно позволяет. Сетевые пути, junction в
+конце пути и FAT/exFAT не подходят. Token record на Windows дополнительно
+зашифрован DPAPI текущего user; после сброса пароля Windows или переноса профиля
+он не открывается, и сервер просит выполнить login заново (`auth_expired`).
+Подробно — в [модели безопасности](security.md#windows).
 
 ## Rate limits и resilience
 
@@ -246,10 +265,12 @@ Bootstrap prompts идут в stderr, success — один allowlisted JSON obje
 URL/authority и userinfo динамически добавляются в redaction set для логов и
 внешних payload; отдельные proxy user/host fragments — только от 8 символов
 (`MIN_DISTINCTIVE_SECRET_LENGTH`), чтобы короткое `user` не портило обычные данные.
-Credential record защищён mode `0600`, но не application-level encryption:
-используйте шифрование диска, private backups и отдельную OS account.
+На Linux/macOS credential record защищён mode `0600`, но не application-level
+encryption: используйте шифрование диска, private backups и отдельную OS account.
+На Windows record зашифрован DPAPI и открывается только под тем же Windows user.
 
 Если filesystem error произошёл после atomic `os.replace`, но до подтверждённого
-directory `fsync`, результат возвращается как `credential_update_unknown`: новый
+directory `fsync` и повторной проверки файла (на Windows directory `fsync` нет),
+результат возвращается как `credential_update_unknown`: новый
 record уже может быть видим. Не считайте это гарантированным сохранением старого
 token и сначала повторно проверьте store/bootstrap.

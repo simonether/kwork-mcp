@@ -38,6 +38,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
+      - run: uv run mypy --platform win32
 
   tests:
     name: Tests / Python ${{ matrix.python-version }}
@@ -68,6 +69,43 @@ jobs:
           --cov-branch
           --cov-report=term-missing
           --cov-report=xml
+
+  windows:
+    name: Windows / Python ${{ matrix.python-version }}
+    runs-on: windows-2025
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Check out as on Linux; .gitattributes keeps shell scripts LF for everyone else.
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install exact uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          checksum: "acfde570451cfdb8689fa159a138ee805ba4e241c466432750302c86254b0984"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked --all-groups
+      # Coverage is gated on Linux, where the POSIX branches run.
+      - run: uv run pytest tests/ -v
+      - run: uv build --no-sources --wheel
+      - name: Smoke-test installed wheel
+        run: |
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          bash scripts/smoke-wheel.sh "$wheel"
 
   package:
     name: Build and inspect distributions

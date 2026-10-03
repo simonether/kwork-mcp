@@ -2,13 +2,14 @@
 
 Stdio MCP gateway for the Kwork freelance marketplace: 22 tools (18 typed reads + a
 durable `prepare → commit → reconcile` write protocol) on FastMCP 4 / MCP SDK 2 over the pinned
-`kwork==0.2.0` client. Python 3.12–3.14, managed with `uv`.
+`kwork==0.2.0` client. Python 3.12–3.14 on macOS, Linux and Windows, managed with `uv`.
 
 ## Commands
 
 - `uv run ruff check .` — lint
 - `uv run ruff format --check .` — format check
 - `uv run mypy` — strict type check
+- `uv run mypy --platform win32` — the same check for the Windows branches
 - `uv run python -m pytest tests/ -q` — tests
 - `uv run python -m pytest tests/ -q --cov=kwork_mcp --cov-report=term-missing` — tests + coverage (gate: 92% branch)
 - `uv run kwork-mcp` — start the server (stdio); needs a bootstrapped account
@@ -26,7 +27,9 @@ src/kwork_mcp/
   session.py        KworkSessionManager: lazy auth, account identity checks, call_read / call_write_step
   coordination.py   CoordinationStore: shared SQLite — rate limits, circuits, cursors, write ledger, writer lock
   contracts.py      pinned pykwork signatures and generic route params (enforce_route_params)
-  security.py       SecureTokenStore, sanitize_external / redact_text, log redaction
+  security.py       SecureTokenStore, state directory checks, sanitize_external / redact_text, log redaction
+  private_fs.py     platform layer: POSIX modes or Windows owner/DACL checks, locks, DPAPI sealing
+  windows.py        Win32 calls through ctypes (imported only on Windows)
   errors.py         GatewayError taxonomy, classify_upstream_error
   models.py         ResultEnvelope, records, write requests, WriteState
   middleware.py     strict, sanitized tool-input validation
@@ -52,6 +55,17 @@ site/               GitHub Pages landing page (Russian), deployed by .github/wor
 - **Secretless steady state.** The server accepts only safe env (`KWORK_PERSIST_TOKEN=true`,
   `KWORK_WRITES`, limits, `KWORK_STATE_DIR`, optional `KWORK_EXPECTED_USER_ID`). Login,
   password, token, phone and proxy go only through `kwork-mcp login` into the account store.
+- **Platforms.** All OS differences go through `private_fs`. POSIX keeps state private with
+  0700/0600 modes, an fd-anchored `O_NOFOLLOW` directory walk and `flock`. Windows has no mode
+  bits: state directories are created with an owner-only protected DACL (ancestors outside the
+  profile must not let others rename or re-permission them), token and lock files are checked
+  by owner and DACL through their handles and the SQLite ledger by path before each
+  connection, tokens are sealed with DPAPI bound to the account scope, and locks use
+  `msvcrt.locking`. The default state stays in the profile (`~/.local/state/kwork-mcp`), not
+  in AppData, which packaged (MSIX) clients see virtualized.
+  Write `if sys.platform == "win32": ... else: ...` rather than an early return, so that
+  `mypy --platform win32` sees no unreachable code; coverage skips the Windows branches and
+  `windows.py`, which run on the Windows CI job.
 - **Account selection.** Without `KWORK_EXPECTED_USER_ID` the server serves the single account
   that login stored a token for (`load_server_config`). With none or several it still starts
   without a session: every tool answers `auth_required` or `account_binding_required`
@@ -123,8 +137,8 @@ site/               GitHub Pages landing page (Russian), deployed by .github/wor
 - NEVER perform a remote write outside the ledger, and never auto-retry a remote write.
 - ALWAYS use native Russian in user-facing strings; keep code comments in English (ruff RUF003
   rejects Cyrillic look-alike letters in comments).
-- ALWAYS run `uv run ruff check . && uv run mypy && uv run python -m pytest tests/ -q` before a
-  commit.
+- ALWAYS run `uv run ruff check . && uv run mypy && uv run mypy --platform win32 &&
+  uv run python -m pytest tests/ -q` before a commit.
 - Live checks against a real account are read-only unless the owner explicitly allows a write;
   anonymize any captured response before it becomes a fixture.
 

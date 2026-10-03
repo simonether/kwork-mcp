@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ from kwork_mcp.config import (
     AccountSelectionError,
     KworkConfig,
     bound_account_ids,
+    client_default_state_dir,
     load_server_config,
     select_bound_account,
 )
@@ -25,6 +27,7 @@ from kwork_mcp.coordination import CoordinationStore
 from kwork_mcp.security import SecureTokenStore, TokenRecord
 from kwork_mcp.server import create_server
 from kwork_mcp.version import __version__
+from tests.platforms import posix_only
 
 
 class TTYBuffer(io.StringIO):
@@ -38,6 +41,7 @@ def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         if name.upper().startswith("KWORK_"):
             monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     path = tmp_path / "state"
     path.mkdir(mode=0o700)
@@ -347,7 +351,7 @@ def test_login_prints_the_shortest_commands_for_the_default_setup(
     state_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    default = Path(os.environ["HOME"]) / ".local" / "state" / "kwork-mcp"
+    default = client_default_state_dir()
     monkeypatch.setenv("KWORK_STATE_DIR", str(default))
 
     lines = _instructions().splitlines()
@@ -379,6 +383,7 @@ def test_login_names_the_account_when_the_token_directory_is_unreadable(
     assert "-e KWORK_EXPECTED_USER_ID=42" in _instructions()
 
 
+@posix_only
 def test_login_quotes_a_state_directory_with_spaces(
     state_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -586,7 +591,7 @@ def test_login_prints_a_claude_desktop_entry_with_the_absolute_uvx_path(
 
     assert (
         f'"kwork-com": {{"command": "/opt/tools/bin/uvx", "args": ["kwork-mcp@{__version__}"], '
-        f'"env": {{"KWORK_SITE": "com", "KWORK_STATE_DIR": "{state_dir}"}}}}'
+        f'"env": {{"KWORK_SITE": "com", "KWORK_STATE_DIR": {json.dumps(str(state_dir), ensure_ascii=False)}}}}}'
     ) in output
 
 
@@ -595,7 +600,7 @@ def test_login_falls_back_to_plain_uvx_when_it_is_not_on_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("kwork_mcp.bootstrap.shutil.which", lambda _name: None)
-    default = Path(os.environ["HOME"]) / ".local" / "state" / "kwork-mcp"
+    default = client_default_state_dir()
     monkeypatch.setenv("KWORK_STATE_DIR", str(default))
 
     assert f'"kwork": {{"command": "uvx", "args": ["kwork-mcp@{__version__}"]}}' in _instructions()

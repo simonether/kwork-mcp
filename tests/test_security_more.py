@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from yarl import URL
 
 import kwork_mcp.security as security_module
+from kwork_mcp import private_fs
 from kwork_mcp.config import KworkConfig, proxy_redaction_secrets
 from kwork_mcp.errors import GatewayError
 from kwork_mcp.models import ErrorCode
@@ -28,6 +29,7 @@ from kwork_mcp.security import (
     redact_text,
     sanitize_external,
 )
+from tests.platforms import assert_private_directory, posix_only
 
 
 def _assert_validation(error: pytest.ExceptionInfo[GatewayError], diagnostic: str) -> None:
@@ -45,15 +47,23 @@ def test_secure_directory_creates_private_parents_and_rejects_regular_file(
 ) -> None:
     nested = tmp_path / "private" / "nested"
     ensure_secure_directory(nested)
-    assert stat.S_IMODE(nested.stat().st_mode) == 0o700
+    assert_private_directory(tmp_path / "private")
+    assert_private_directory(nested)
 
     regular = tmp_path / "regular"
     regular.write_text("not a directory")
     with pytest.raises(GatewayError) as caught:
         ensure_secure_directory(regular)
-    assert caught.value.diagnostic == "state_directory_chain_error:NotADirectoryError"
+    # POSIX opens the path as a directory; Windows looks at its type first.
+    expected = (
+        "state_directory_component_not_directory"
+        if sys.platform == "win32"
+        else "state_directory_chain_error:NotADirectoryError"
+    )
+    assert caught.value.diagnostic == expected
 
 
+@posix_only
 def test_secure_directory_supports_execute_only_trusted_ancestor(
     tmp_path: Path,
 ) -> None:
@@ -66,6 +76,7 @@ def test_secure_directory_supports_execute_only_trusted_ancestor(
     assert stat.S_IMODE(state.stat().st_mode) == 0o700
 
 
+@posix_only
 def test_secure_directory_creation_is_private_under_restrictive_umask(
     tmp_path: Path,
 ) -> None:
@@ -79,6 +90,7 @@ def test_secure_directory_creation_is_private_under_restrictive_umask(
     assert stat.S_IMODE(state.stat().st_mode) == 0o700
 
 
+@posix_only
 def test_secure_directory_wraps_creation_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -92,6 +104,7 @@ def test_secure_directory_wraps_creation_failure(
     _assert_validation(caught, "state_directory_chain_error:PermissionError")
 
 
+@posix_only
 def test_secure_directory_rejects_real_nonsticky_writable_ancestor(
     tmp_path: Path,
 ) -> None:
@@ -111,6 +124,7 @@ def test_secure_directory_rejects_real_nonsticky_writable_ancestor(
     )
 
 
+@posix_only
 def test_secure_directory_allows_one_sticky_temp_boundary_but_not_nested_shared(
     tmp_path: Path,
 ) -> None:
@@ -132,6 +146,7 @@ def test_secure_directory_allows_one_sticky_temp_boundary_but_not_nested_shared(
     )
 
 
+@posix_only
 @pytest.mark.parametrize("unsafe_mode", [0o710, 0o1700, 0o2700, 0o4700])
 def test_secure_directory_requires_exact_final_mode(
     tmp_path: Path,
@@ -145,6 +160,7 @@ def test_secure_directory_requires_exact_final_mode(
     _assert_validation(caught, "state_directory_permissions_must_be_0700")
 
 
+@posix_only
 def test_secure_directory_resolves_only_trusted_nonfinal_aliases(
     tmp_path: Path,
 ) -> None:
@@ -167,6 +183,7 @@ def test_secure_directory_resolves_only_trusted_nonfinal_aliases(
     _assert_validation(caught, "state_directory_untrusted_symlink_ancestor")
 
 
+@posix_only
 def test_secure_directory_checks_every_alias_hop_in_target_chain(
     tmp_path: Path,
 ) -> None:
@@ -187,6 +204,7 @@ def test_secure_directory_checks_every_alias_hop_in_target_chain(
     assert not (target / "state").exists()
 
 
+@posix_only
 def test_secure_directory_resolves_relative_alias_and_rejects_alias_loop(
     tmp_path: Path,
 ) -> None:
@@ -205,6 +223,7 @@ def test_secure_directory_resolves_relative_alias_and_rejects_alias_loop(
     _assert_validation(caught, "state_directory_alias_loop")
 
 
+@posix_only
 def test_secure_directory_wraps_readlink_failure_without_following(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -227,6 +246,7 @@ def test_secure_directory_wraps_readlink_failure_without_following(
     assert not (target / "state").exists()
 
 
+@posix_only
 def test_secure_directory_symlink_injection_race_is_never_followed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -288,13 +308,17 @@ def test_secure_directory_rejects_ambiguous_lexical_paths(unsafe: Path) -> None:
     _assert_validation(caught, "state_directory_path_invalid")
 
 
-def test_token_store_rejects_invalid_scope_and_non_regular_lock(tmp_path: Path) -> None:
+def test_token_store_rejects_invalid_scope(tmp_path: Path) -> None:
     store = SecureTokenStore(tmp_path / "state")
     for scope in ("../escape", "UPPERCASE", "", "a" * 97):
         with pytest.raises(GatewayError) as caught:
             store.load_locked(scope)
         _assert_validation(caught, "invalid_token_scope")
 
+
+@posix_only
+def test_token_store_rejects_a_directory_as_its_lock(tmp_path: Path) -> None:
+    store = SecureTokenStore(tmp_path / "state")
     lock = tmp_path / "state" / "tokens" / "account-1.lock"
     lock.mkdir(mode=0o700)
     with pytest.raises(GatewayError) as caught:
@@ -302,6 +326,7 @@ def test_token_store_rejects_invalid_scope_and_non_regular_lock(tmp_path: Path) 
     _assert_validation(caught, "token_lock_error:IsADirectoryError")
 
 
+@posix_only
 def test_fresh_token_lock_is_private_under_restrictive_umask(tmp_path: Path) -> None:
     old_umask = os.umask(0o777)
     fd: int | None = None
@@ -318,6 +343,7 @@ def test_fresh_token_lock_is_private_under_restrictive_umask(tmp_path: Path) -> 
     assert stat.S_IMODE(lock.stat().st_mode) == 0o600
 
 
+@posix_only
 def test_existing_token_lock_permissions_are_rejected_without_repair(
     tmp_path: Path,
 ) -> None:
@@ -623,7 +649,7 @@ def test_token_store_rejects_malformed_records(
 ) -> None:
     store = SecureTokenStore(tmp_path / "state")
     token_path = tmp_path / "state" / "tokens" / "account-42.json"
-    token_path.write_text(payload)
+    token_path.write_bytes(private_fs.seal(payload.encode(), purpose=security_module._token_seal_purpose("account-42")))
     os.chmod(token_path, 0o600)
     with pytest.raises(GatewayError) as caught:
         store.load_locked("account-42")

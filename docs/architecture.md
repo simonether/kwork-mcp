@@ -44,7 +44,9 @@ flowchart LR
   Fingerprint общей rate/circuit/write policy закрепляется в metadata: процесс с
   несовместимой конфигурацией того же state directory завершается fail-loud.
 - **Secure credential store** атомарно сохраняет account-scoped session token и
-  optional proxy URL под межпроцессным `flock`.
+  optional proxy URL под межпроцессным lock (`flock`, на Windows `msvcrt.locking`).
+- **Platform layer** (`private_fs`, Win32 calls в `windows.py`) прячет различия ОС:
+  POSIX modes и `flock` либо Windows owner/DACL checks, DPAPI и `msvcrt` locks.
 - **Upstream adapter** фиксирует `kwork==0.2.0`, ограничивает generic route params и
   сохраняет error payloads, которые исходная библиотека могла потерять.
 
@@ -105,7 +107,9 @@ State root открывается через проверенную FD-цепо�
 по одному `readlink` hop с повторным обходом и loop limit, поэтому target не может
 скрыть writable intermediate alias. Missing tail создаётся и открывается только
 через `mkdirat/openat(O_NOFOLLOW)`; final directory обязан быть current-owned
-exact `0700`.
+exact `0700`. На Windows FD-цепочки нет: недостающие каталоги создаются с
+owner-only protected DACL, а final directory и каждый state file проверяются по
+owner и DACL (см. [security.md](security.md#windows)).
 
 ## Межпроцессная координация
 

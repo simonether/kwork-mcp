@@ -5,7 +5,6 @@ import gc
 import multiprocessing
 import os
 import sqlite3
-import stat
 import time
 import warnings
 from collections.abc import Callable
@@ -19,6 +18,7 @@ from kwork_mcp.config import KworkConfig
 from kwork_mcp.coordination import CoordinationStore, CursorCodec, pages_from_paging
 from kwork_mcp.errors import GatewayError
 from kwork_mcp.models import ErrorCode, WriteAction, WriteState
+from tests.platforms import assert_private_file
 
 
 @pytest.mark.asyncio
@@ -423,7 +423,7 @@ def test_rate_limit_is_shared_between_processes(tmp_path: Path) -> None:
         process.join(timeout=5)
         assert process.exitcode == 0
     assert timestamps[1] - timestamps[0] >= 0.40
-    assert stat.S_IMODE((state_dir / "coordination.sqlite3").stat().st_mode) == 0o600
+    assert_private_file(state_dir / "coordination.sqlite3")
 
 
 def test_sqlite_connections_do_not_emit_resource_warnings(

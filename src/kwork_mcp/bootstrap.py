@@ -9,6 +9,7 @@ import json
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 import warnings
 from collections.abc import Awaitable, Callable, Sequence
@@ -20,10 +21,12 @@ from typing import Any, Self, TextIO, cast
 from kwork.schema.actor import Actor
 from pydantic import SecretStr, ValidationError, model_validator
 
+from kwork_mcp import private_fs
 from kwork_mcp.config import (
     AccountSelectionError,
     KworkConfig,
     bound_account_ids,
+    client_default_state_dir,
     contains_unsafe_text_codepoint,
     load_server_config,
     secret_server_environment_present,
@@ -71,8 +74,8 @@ KWORK_EXPECTED_USER_ID не задан, login покажет найденный 
 Для kwork.com задайте KWORK_SITE=com. Аккаунт и токен у kwork.ru и kwork.com
 общие, поэтому повторный вход при смене сайта не нужен.
 
-Если существует legacy ~/.kwork_token с owner=current user и mode 0600, login
-предложит проверить и импортировать его. Сервер legacy-файл никогда не
+Если существует legacy ~/.kwork_token, доступный только вам (на macOS и Linux:
+owner=current user и mode 0600), login предложит проверить и импортировать его. Сервер legacy-файл никогда не
 импортирует.
 
 Отправка с неизвестным исходом (submission_unknown) блокирует новые отправки
@@ -562,7 +565,7 @@ async def _run_write_admin(
             return 2
         write_id, outcome = rest
         if not (stdin.isatty() and stderr.isatty()):
-            stderr.write("Ошибка: resolve-write требует настоящий интерактивный TTY.\n")
+            stderr.write(_not_a_terminal("Ошибка: resolve-write требует настоящий интерактивный TTY."))
             return 2
         record = await coordinator.get_write(write_id, scope=scope)
         if record is None:
@@ -621,6 +624,48 @@ _WRITES_STATUS = {
 }
 
 
+def _not_a_terminal(message: str) -> str:
+    if sys.platform == "win32":
+        # Git Bash in its own mintty window hands programs pipes, not a console.
+        message += " На Windows запустите команду в PowerShell или Windows Terminal."
+    return message + "\n"
+
+
+def _warn_if_elevated(stderr: TextIO) -> None:
+    # An elevated window may run as another Windows account (another admin, or
+    # the hidden one of Administrator Protection): the token would land in its
+    # profile, sealed for it, and the client's server would not find it.
+    if sys.platform == "win32":
+        try:
+            elevated = private_fs.is_elevated()
+        except OSError:
+            elevated = False
+        if elevated:
+            stderr.write(
+                "Внимание: login запущен от имени администратора. Если это другая учётная запись Windows, "
+                "сервер в агенте не увидит вход. Надёжнее запустить login в обычном окне PowerShell.\n"
+            )
+
+
+def _command_line(args: list[str]) -> str:
+    """Quote a command for the user's shell: PowerShell or cmd on Windows, a POSIX shell elsewhere."""
+
+    if sys.platform == "win32":
+        line = subprocess.list2cmdline(args)
+    else:
+        line = shlex.join(args)
+    return line
+
+
+def _desktop_config_files() -> str:
+    if sys.platform == "win32":
+        # A packaged (MSIX) Claude Desktop keeps the file in its own AppData copy.
+        files = r"claude_desktop_config.json (Settings → Developer → Edit Config) или %USERPROFILE%\.cursor\mcp.json"
+    else:
+        files = "claude_desktop_config.json или ~/.cursor/mcp.json"
+    return files
+
+
 def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_retained: bool) -> str:
     """What to run next, with every setting the server needs to find this account."""
 
@@ -634,9 +679,9 @@ def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_r
         environment.append(f"KWORK_EXPECTED_USER_ID={actor.id}")
     if config.site != "ru":
         environment.append(f"KWORK_SITE={config.site}")
-    # A client may start the server without XDG_STATE_HOME, so anything but
-    # the plain default location is passed explicitly.
-    if config.state_dir != Path.home() / ".local" / "state" / "kwork-mcp":
+    # A client starts the server with a trimmed environment, so anything but
+    # the location it finds on its own is passed explicitly.
+    if config.state_dir != client_default_state_dir():
         environment.append(f"KWORK_STATE_DIR={config.state_dir}")
     name = "kwork" if config.site == "ru" else f"kwork-{config.site}"
     claude = ["claude", "mcp", "add", name, "--scope", "user"]
@@ -654,10 +699,10 @@ def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_r
         f"Аккаунт {_terminal_safe(str(actor.username))} (user_id {actor.id}) подключён.",
         "",
         "Добавьте kwork-mcp в агента. Claude Code:",
-        "  " + _terminal_safe(shlex.join(claude + server)),
+        "  " + _terminal_safe(_command_line(claude + server)),
         "Codex:",
-        "  " + _terminal_safe(shlex.join(codex + server)),
-        'Claude Desktop и Cursor: в "mcpServers" файла claude_desktop_config.json или ~/.cursor/mcp.json',
+        "  " + _terminal_safe(_command_line(codex + server)),
+        f'Claude Desktop и Cursor: в "mcpServers" файла {_desktop_config_files()}',
         "  " + _terminal_safe(f'"{name}": ' + json.dumps(desktop, ensure_ascii=False)),
         "",
         "Каждую отправку агент сначала покажет вам на подтверждение. Чтобы он отправлял сам, добавьте "
@@ -697,7 +742,7 @@ async def _run_logout(
         return 2
     try:
         if not (stdin.isatty() and stderr.isatty()):
-            stderr.write("Ошибка: logout запускается только в интерактивном терминале (TTY).\n")
+            stderr.write(_not_a_terminal("Ошибка: logout запускается только в интерактивном терминале (TTY)."))
             return 2
         config = _base_bootstrap_config()
         account_id = account_arg if account_arg is not None else _selected_account(config)
@@ -856,8 +901,9 @@ async def run_bootstrap_cli(
             stderr.write("Ошибка: не удалось проверить, что login запущен в интерактивном терминале (TTY).\n")
         return 2
     if not interactive:
-        stderr.write("Ошибка: login запускается только в интерактивном терминале (TTY).\n")
+        stderr.write(_not_a_terminal("Ошибка: login запускается только в интерактивном терминале (TTY)."))
         return 2
+    _warn_if_elevated(stderr)
 
     try:
         base = _base_bootstrap_config()
@@ -986,6 +1032,10 @@ async def run_bootstrap_cli(
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    if sys.platform == "win32":
+        from kwork_mcp import use_utf8_streams
+
+        use_utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     code = asyncio.run(
         run_bootstrap_cli(

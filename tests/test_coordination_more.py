@@ -16,6 +16,7 @@ from kwork_mcp.config import KworkConfig
 from kwork_mcp.coordination import CoordinationStore, CursorCodec, pages_from_paging
 from kwork_mcp.errors import GatewayError
 from kwork_mcp.models import ErrorCode, ErrorInfo, WriteAction, WriteState
+from tests.platforms import posix_only
 
 
 def _create_legacy_database(path: Path, version: int) -> None:
@@ -221,6 +222,7 @@ async def test_v2_committing_write_migrates_to_unknown_and_blocks_duplicates(
     assert claimed.state is WriteState.COMMITTING
 
 
+@posix_only
 def test_coordination_rejects_symlink_permissions_and_post_init_tamper(
     config_factory: Callable[..., KworkConfig],
     tmp_path: Path,
@@ -250,6 +252,7 @@ def test_coordination_rejects_symlink_permissions_and_post_init_tamper(
     assert changed.value.diagnostic == "coordination_db_security_changed"
 
 
+@posix_only
 def test_fresh_coordination_database_is_private_under_restrictive_umask(
     tmp_path: Path,
 ) -> None:

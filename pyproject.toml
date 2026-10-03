@@ -13,6 +13,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
@@ -103,6 +104,8 @@ required-version = ">=0.11.6"
 [tool.coverage.run]
 branch = true
 source = ["kwork_mcp"]
+# The Win32 calls run only on the Windows CI job, which has no gate.
+omit = ["*/kwork_mcp/windows.py"]
 
 [tool.coverage.report]
 fail_under = 92
@@ -112,6 +115,10 @@ exclude_also = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
+    'if sys\.platform == "win32":',
+]
+partial_also = [
+    'if sys\.platform != "win32":',
 ]
 
 [tool.mypy]
