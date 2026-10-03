@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="kwork-mcp" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.png">
+    <img src="assets/banner-light.png" alt="kwork-mcp: MCP-сервер для Kwork. Агент готовит отклики и ответы, отправляете вы." width="100%">
+  </picture>
 </p>
 
 [![CI](https://github.com/simonether/kwork-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/simonether/kwork-mcp/actions/workflows/ci.yml)

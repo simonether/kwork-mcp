@@ -7,17 +7,17 @@
 <title>kwork-mcp: MCP-сервер для Kwork в Claude Code, Codex и Cursor</title>
 <meta name="description" content="Подключите аккаунт Kwork к ИИ-агенту: поиск проектов на бирже, диалоги, заказы и отклики из Claude Code, Codex и Cursor. Открытый код, отправка только после вашего подтверждения.">
 <meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="google-site-verification" content="LOcWGZD07nUTycnVEaoSbUokoMhJb3l7GHsrGh3nrn0">
 <meta name="author" content="Simon Sudarushkin">
 <link rel="canonical" href="https://simonether.github.io/kwork-mcp/">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#edf1ec">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a1418">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f6f8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14162c">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
 <link rel="preload" href="fonts/geologica-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/geologica-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/jbmono-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ru_RU">
 <meta property="og:site_name" content="kwork-mcp">
@@ -28,12 +28,12 @@
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="kwork-mcp: MCP-сервер для Kwork. Агент готовит отклик, вы подтверждаете отправку.">
+<meta property="og:image:alt" content="kwork-mcp: MCP-сервер для Kwork. Агент готовит отклик, вы ставите печать.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="kwork-mcp: MCP-сервер для Kwork">
 <meta name="twitter:description" content="Аккаунт Kwork в Claude Code, Codex и Cursor: биржа, диалоги, заказы и отклики. Отправка только после вашего «да».">
 <meta name="twitter:image" content="https://simonether.github.io/kwork-mcp/og.png">
-<meta name="twitter:image:alt" content="kwork-mcp: MCP-сервер для Kwork. Агент готовит отклик, вы подтверждаете отправку.">
+<meta name="twitter:image:alt" content="kwork-mcp: MCP-сервер для Kwork. Агент готовит отклик, вы ставите печать.">
 <script src="theme.js"></script>
 <link rel="stylesheet" href="style.css">
 <script type="application/ld+json">
@@ -100,16 +100,15 @@
   <div class="container bar">
     <a class="brand" href="./" aria-label="kwork-mcp, на главную">
       <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-        <rect class="logo-bg" width="64" height="64" rx="14"/>
-        <path class="logo-k" d="M20 14v36M44 18L24 34l20 14" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="46" cy="16" r="6" fill="#f2b134"/>
+        <path class="logo-k" stroke-width="3.2" stroke-linejoin="round" d="M11.60 10.60 L20.00 10.60 L20.00 37.06 L33.63 23.43 L39.57 29.37 L35.32 33.62 L51.50 53.40 L40.65 53.40 L29.35 39.59 L20.00 48.94 L20.00 53.40 L11.60 53.40Z"/>
+        <path class="logo-spark" d="M48 6c1.1 6.2 3.8 8.9 10 10-6.2 1.1-8.9 3.8-10 10-1.1-6.2-3.8-8.9-10-10 6.2-1.1 8.9-3.8 10-10z"/>
       </svg>
       <span>kwork-mcp</span>
     </a>
     <nav class="nav" aria-label="Разделы">
       <a href="#examples">Примеры</a>
       <a href="#safety">Безопасность</a>
-      <a href="#start">Быстрый старт</a>
+      <a href="#start">Установка</a>
       <a href="#tools">Инструменты</a>
       <a href="#faq">Вопросы</a>
     </nav>
@@ -130,137 +129,124 @@
   <section class="hero" aria-labelledby="hero-title">
     <div class="container hero-grid">
       <div class="hero-copy">
-        <h1 id="hero-title"><span class="h1-a"><span class="nw">MCP-сервер</span> для Kwork</span><span class="sr-only">: </span><span class="h1-b">агент готовит, отправляете вы</span></h1>
-        <p class="hero-lead">Подключает ваш аккаунт Kwork к ИИ-агенту: Claude Code, Claude Desktop, Codex, Cursor и другим MCP-клиентам. Агент ищет проекты на бирже, читает диалоги, заказы и отклики, готовит ответы. <strong>Отправить что-то на Kwork он может, только если вы включили запись, и только после вашего подтверждения.</strong></p>
+        <h1 id="hero-title">MCP-сервер для&nbsp;Kwork</h1>
+        <p class="hero-sub">Агент готовит отклики и&nbsp;ответы. Отправляете вы.</p>
+        <p class="hero-lead">Подключите аккаунт Kwork к&nbsp;Claude Code, Claude Desktop, Codex или Cursor. Агент найдёт проекты на&nbsp;бирже, разберёт диалоги и&nbsp;заказы и&nbsp;подготовит текст. На&nbsp;Kwork уходит только то, что вы подтвердили.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="#start">Быстрый старт</a>
-          <a class="btn btn-secondary" href="https://github.com/simonether/kwork-mcp">Код на GitHub</a>
-        </div>
-        <div class="cmd" data-copy>
-          <code class="sh">uvx --from kwork-mcp==1.3.0 kwork-mcp-bootstrap</code>
-        </div>
-        <p class="hero-facts">Бесплатно, лицензия MIT. Работает на macOS и Linux с Python 3.12–3.14. Версия 1.3.0, 22 инструмента, kwork.ru и kwork.com. Пакет на <a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
-      </div>
-
-      <div class="demo" role="group" aria-labelledby="demo-title" data-demo>
-        <div class="demo-bar">
-          <span id="demo-title">Пример сессии агента</span>
-          <span class="demo-mode">запись включена</span>
-        </div>
-        <div class="demo-body">
-          <p class="line you" data-step><span class="who">вы</span><span class="txt"><span data-type>Подготовь отклик на проект 3257238: 15&nbsp;000&nbsp;₽, 5&nbsp;дней</span></span></p>
-          <p class="line tool" data-step><span class="who">агент</span><span class="txt"><b>get_project</b> 3257238<i class="ok">ok</i></span></p>
-          <p class="line tool" data-step><span class="who"></span><span class="txt"><b>prepare_write</b> submit_offer<i class="ok">ok</i></span></p>
-          <p class="line say" data-step><span class="who"></span><span class="txt">Отклик подготовлен. Проверьте текст и цену.</span></p>
-
-          <div class="slip" data-step data-slip data-state="pending">
-            <div class="slip-head">
-              <span class="slip-title">Черновик отклика</span>
-              <span class="chip" data-chip>Подготовлено</span>
-            </div>
-            <dl class="slip-fields">
-              <div><dt>Проект</dt><dd>3257238</dd></div>
-              <div><dt>Заголовок</dt><dd>Telegram-бот для записи клиентов</dd></div>
-              <div><dt>Текст</dt><dd class="clamp">Здравствуйте! Разберу ваш проект и сделаю бота на aiogram: запись по свободным слотам, напоминания клиентам, выгрузка в таблицу. Срок 5 дней, один круг правок включён.</dd></div>
-              <div><dt>Цена</dt><dd>15&nbsp;000&nbsp;₽</dd></div>
-              <div><dt>Срок</dt><dd>5 дней</dd></div>
-              <div><dt>Хэш</dt><dd class="hash">7f3a91…c91e</dd></div>
-            </dl>
-            <p class="slip-note" data-note aria-live="polite">На Kwork пока ничего не отправлено. Запрос уйдёт только после вашего подтверждения.</p>
-            <div class="slip-actions js-only">
-              <button class="btn btn-primary" type="button" data-confirm>Подтвердить и отправить</button>
-              <button class="btn btn-secondary" type="button" data-cancel>Не отправлять</button>
-            </div>
-            <button class="slip-replay" type="button" data-replay>Попробовать ещё раз</button>
+          <a class="btn btn-primary" href="#start">Установить</a>
+          <div class="cmd" data-copy>
+            <code class="sh">uvx --from kwork-mcp==1.3.0 kwork-mcp-bootstrap</code>
           </div>
         </div>
+        <p class="hero-facts">Бесплатно и&nbsp;с&nbsp;открытым кодом (MIT). macOS и&nbsp;Linux, Python 3.12–3.14. Версия 1.3.0 на&nbsp;<a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
       </div>
+      <picture class="hero-art">
+        <source type="image/avif" srcset="img/hero-640.avif 640w, img/hero-1200.avif 1200w" sizes="(max-width: 900px) min(88vw, 440px), 560px">
+        <img src="img/hero-1200.webp" srcset="img/hero-640.webp 640w, img/hero-1200.webp 1200w" sizes="(max-width: 900px) min(88vw, 440px), 560px" width="1200" height="1143" fetchpriority="high" alt="Черновик отклика на проект 3257238: цена 15 000 ₽, срок 5 дней. Рядом карандаш, которым его подготовил агент, и печать «Отправлено», которую ставите вы.">
+      </picture>
     </div>
   </section>
 
   <section class="section" id="examples" aria-labelledby="examples-title">
-    <div class="container split">
-      <div class="split-head">
-        <h2 id="examples-title">Что можно попросить у агента</h2>
-        <p>Обычными словами, в том клиенте, где вы и так работаете. Справа указано, какие инструменты агент для этого вызывает.</p>
+    <div class="container">
+      <div class="section-head">
+        <h2 id="examples-title">Что можно попросить у&nbsp;агента</h2>
+        <p>Обычными словами, в&nbsp;том клиенте, где вы и&nbsp;так работаете.</p>
       </div>
       <ul class="asks">
         <li>
-          <p class="ask-text">«Найди свежие проекты про Telegram-ботов с бюджетом от 20&nbsp;000&nbsp;₽ и скажи, какие мне подходят»</p>
-          <p class="used"><code>discover_projects</code><code>get_project</code></p>
+          <p class="ask">«Найди свежие проекты про Telegram-ботов с&nbsp;бюджетом от&nbsp;20&nbsp;000&nbsp;₽ и&nbsp;скажи, какие мне подходят»</p>
+          <p class="gets">Подборка проектов с&nbsp;ценой, сроком и&nbsp;числом откликов. Агент отметит, какие стоит взять.</p>
         </li>
         <li>
-          <p class="ask-text">«Покажи диалоги с непрочитанными сообщениями и предложи ответы»</p>
-          <p class="used"><code>list_dialogs</code><code>get_dialog</code></p>
+          <p class="ask">«Покажи диалоги с&nbsp;непрочитанными сообщениями и&nbsp;предложи ответы»</p>
+          <p class="gets">Кто и&nbsp;что написал, и&nbsp;черновики ответов. Уйдут только те, что вы подтвердите.</p>
         </li>
         <li>
-          <p class="ask-text">«Что с моими заказами? Где что-то ждёт моих действий?»</p>
-          <p class="used"><code>list_worker_orders</code><code>get_order_details</code></p>
+          <p class="ask">«Что с&nbsp;моими заказами? Где что-то ждёт моих действий?»</p>
+          <p class="gets">Заказы со&nbsp;статусами и&nbsp;сроками. Отдельно те, где ход за&nbsp;вами.</p>
         </li>
         <li>
-          <p class="ask-text">«Сколько у меня коннектов и какие мои отклики ещё висят?»</p>
-          <p class="used"><code>get_connects</code><code>list_my_offers</code></p>
+          <p class="ask">«Сколько у&nbsp;меня коннектов и&nbsp;какие отклики ещё висят?»</p>
+          <p class="gets">Баланс коннектов и&nbsp;список активных откликов.</p>
         </li>
-        <li>
-          <p class="ask-text">«Подготовь отклик на проект 3257238: 15&nbsp;000&nbsp;₽, 5&nbsp;дней»<small>Агент покажет точный текст и цену и отправит только после вашего «да».</small></p>
-          <p class="used"><code>get_project</code><code class="write">prepare_write</code><code class="write">commit_write</code></p>
+        <li class="ask-write">
+          <p class="ask">«Подготовь отклик на&nbsp;проект 3257238: 15&nbsp;000&nbsp;₽, 5&nbsp;дней»</p>
+          <p class="gets">Точный текст, цена и&nbsp;срок отклика, которые можно поправить.</p>
+          <p class="stamp-tag">уйдёт после вашего «да»</p>
+        </li>
+        <li class="ask-write">
+          <p class="ask">«Напиши клиенту из&nbsp;заказа про лендинг, что макет будет в&nbsp;пятницу»</p>
+          <p class="gets">Черновик сообщения в&nbsp;нужный диалог.</p>
+          <p class="stamp-tag">уйдёт после вашего «да»</p>
         </li>
       </ul>
     </div>
   </section>
 
-  <section class="section section--ink" id="safety" aria-labelledby="safety-title">
-    <div class="container split">
-      <div class="split-head">
+  <section class="section section--sheet" id="safety" aria-labelledby="safety-title">
+    <div class="container">
+      <div class="section-head">
         <h2 id="safety-title">Почему агенту можно доверить аккаунт</h2>
-        <p>Отклик тратит коннект, а сообщение клиент видит сразу. Поэтому любая запись проходит через журнал: сервер устроен так, чтобы агент не мог ни отправить лишнего, ни отправить дважды.</p>
+        <p>Отклик тратит коннект, а&nbsp;сообщение клиент видит сразу. Поэтому любая отправка идёт через журнал: агент не&nbsp;может ни&nbsp;отправить лишнего, ни&nbsp;отправить дважды.</p>
       </div>
-      <div>
-        <ol class="rail">
-          <li class="stage stage-prepare">
-            <h3>Подготовка</h3>
-            <code>prepare_write</code>
-            <p><span class="actor">Делает агент.</span> Сервер проверяет условия и запоминает точный запрос: текст, цену, получателя. На Kwork ничего не уходит.</p>
-          </li>
-          <li class="stage stage-commit">
-            <h3>Подтверждение</h3>
-            <code>commit_write</code>
-            <p><span class="actor">После вашего «да».</span> Сервер заново проверяет условия и один раз вызывает Kwork. Автоматических повторов нет.</p>
-          </li>
-          <li class="stage stage-reconcile">
-            <h3>Сверка</h3>
-            <code>reconcile_write</code>
-            <p><span class="actor">Только при обрыве связи.</span> Если исход неизвестен, агент сверяет его с Kwork, а новые отправки ждут.</p>
-          </li>
-        </ol>
+      <ol class="stages">
+        <li class="stage">
+          <picture class="stage-art">
+            <source type="image/avif" srcset="img/stage-draft-400.avif 400w, img/stage-draft-720.avif 720w" sizes="(max-width: 480px) 300px, (max-width: 820px) 45vw, 340px">
+            <img src="img/stage-draft-720.webp" srcset="img/stage-draft-400.webp 400w, img/stage-draft-720.webp 720w" sizes="(max-width: 480px) 300px, (max-width: 820px) 45vw, 340px" width="720" height="720" loading="lazy" decoding="async" alt="Черновик отклика без печати: пунктиром отмечено место для неё, рядом карандаш.">
+          </picture>
+          <h3>Агент готовит</h3>
+          <p>Сервер проверяет условия и&nbsp;запоминает точный запрос: текст, цену, получателя. На&nbsp;Kwork ничего не&nbsp;уходит.</p>
+          <p class="stage-tool"><code>prepare_write</code></p>
+        </li>
+        <li class="stage">
+          <picture class="stage-art">
+            <source type="image/avif" srcset="img/stage-approved-400.avif 400w, img/stage-approved-720.avif 720w" sizes="(max-width: 480px) 300px, (max-width: 820px) 45vw, 340px">
+            <img src="img/stage-approved-720.webp" srcset="img/stage-approved-400.webp 400w, img/stage-approved-720.webp 720w" sizes="(max-width: 480px) 300px, (max-width: 820px) 45vw, 340px" width="720" height="720" loading="lazy" decoding="async" alt="Тот же черновик с фиолетовой печатью «Отправлено», рядом сама печать.">
+          </picture>
+          <h3>Вы подтверждаете</h3>
+          <p>После вашего «да» сервер ещё раз всё проверяет и&nbsp;один раз отправляет запрос. Автоматических повторов нет.</p>
+          <p class="stage-tool"><code>commit_write</code></p>
+        </li>
+        <li class="stage">
+          <picture class="stage-art">
+            <source type="image/avif" srcset="img/stage-check-400.avif 400w, img/stage-check-720.avif 720w" sizes="(max-width: 480px) 300px, (max-width: 820px) 45vw, 340px">
+            <img src="img/stage-check-720.webp" srcset="img/stage-check-400.webp 400w, img/stage-check-720.webp 720w" sizes="(max-width: 480px) 300px, (max-width: 820px) 45vw, 340px" width="720" height="720" loading="lazy" decoding="async" alt="Черновик с красной отметкой «Сверить» и лупа поверх него.">
+          </picture>
+          <h3>Сверка при обрыве</h3>
+          <p>Если связь оборвалась в&nbsp;момент отправки, исход неизвестен. Новые отправки ждут, пока агент не&nbsp;сверит его с&nbsp;Kwork.</p>
+          <p class="stage-tool"><code>reconcile_write</code></p>
+        </li>
+      </ol>
 
+      <div class="safety-more">
         <div class="outcomes">
-          <h3>Чем заканчивается подтверждение</h3>
+          <h3>Чем заканчивается отправка</h3>
           <dl>
-            <div><dt><code class="o-ok">succeeded</code></dt><dd>Kwork принял запрос, результат подтверждён.</dd></div>
-            <div><dt><code class="o-known">failed_known</code></dt><dd>Kwork отказал, и это точно известно. Ничего не отправлено.</dd></div>
-            <div><dt><code class="o-unknown">submission_unknown</code></dt><dd>Связь оборвалась в момент отправки. Запись блокирует новые отправки, пока её не сверят.</dd></div>
+            <div class="o-ok"><dt>Отправлено</dt><dd>Kwork принял запрос, результат подтверждён.</dd></div>
+            <div class="o-known"><dt>Отказано</dt><dd>Kwork отказал, и&nbsp;это точно известно. Ничего не&nbsp;ушло.</dd></div>
+            <div class="o-unknown"><dt>Исход неизвестен</dt><dd>Связь оборвалась в&nbsp;момент отправки. Новые отправки ждут сверки.</dd></div>
           </dl>
         </div>
-
-        <div class="guards">
-          <div>
+        <ul class="guards">
+          <li>
             <h3>По умолчанию только чтение</h3>
-            <p>Пока в конфиге стоит <code>KWORK_ENABLE_WRITES=false</code>, агент ничего не отправляет на Kwork.</p>
-          </div>
-          <div>
-            <h3>Пароль не попадает в конфиг</h3>
-            <p>Логин и пароль вводятся один раз через скрытый ввод и нигде не сохраняются. Токен лежит на вашем компьютере в файлах с правами <code>0600</code>.</p>
-          </div>
-          <div>
+            <p>Пока в&nbsp;конфиге стоит <code>KWORK_ENABLE_WRITES=false</code>, агент ничего не&nbsp;отправляет на&nbsp;Kwork.</p>
+          </li>
+          <li>
+            <h3>Пароль не&nbsp;попадает в&nbsp;конфиг</h3>
+            <p>Логин и&nbsp;пароль вводятся один раз через скрытый ввод и&nbsp;нигде не&nbsp;сохраняются. Токен лежит на&nbsp;вашем компьютере в&nbsp;файлах с&nbsp;правами <code>0600</code>.</p>
+          </li>
+          <li>
             <h3>Только ваш аккаунт</h3>
-            <p>Сервер работает с аккаунтом из <code>KWORK_EXPECTED_USER_ID</code> и проверяет его перед каждой записью.</p>
-          </div>
-          <div>
-            <h3>Чужой текст не команда</h3>
-            <p>Тексты проектов, профилей и сообщений помечаются как внешние данные, а не инструкции для агента.</p>
-          </div>
-        </div>
+            <p>Сервер работает с&nbsp;аккаунтом из&nbsp;<code>KWORK_EXPECTED_USER_ID</code> и&nbsp;проверяет его перед каждой отправкой.</p>
+          </li>
+          <li>
+            <h3>Чужой текст не&nbsp;команда</h3>
+            <p>Тексты проектов, профилей и&nbsp;сообщений помечаются как внешние данные, а&nbsp;не&nbsp;инструкции для агента.</p>
+          </li>
+        </ul>
       </div>
     </div>
   </section>
@@ -268,27 +254,27 @@
   <section class="section" id="start" aria-labelledby="start-title">
     <div class="container split">
       <div class="split-head">
-        <h2 id="start-title">Быстрый старт</h2>
-        <p>Нужны macOS или Linux, Python 3.12–3.14 и <a href="https://docs.astral.sh/uv/">uv</a>. Windows не поддерживается.</p>
+        <h2 id="start-title">Установка</h2>
+        <p>Нужны macOS или Linux, Python 3.12–3.14 и&nbsp;<a href="https://docs.astral.sh/uv/">uv</a>. Windows не&nbsp;поддерживается.</p>
       </div>
       <ol class="steps">
         <li>
-          <h3>Войдите в Kwork (один раз)</h3>
-          <p>Запустите в обычном терминале:</p>
+          <h3>Войдите в&nbsp;Kwork (один раз)</h3>
+          <p>Запустите в&nbsp;обычном терминале:</p>
           <figure class="code" data-copy>
             <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
             <pre><code class="sh">uvx --from kwork-mcp==1.3.0 kwork-mcp-bootstrap</code></pre>
           </figure>
-          <p>Команда скрыто спросит логин и пароль Kwork, покажет найденный аккаунт и после подтверждения сохранит токен в <code>~/.local/state/kwork-mcp</code>. В конце она выведет ваш <code>user_id</code>: он нужен на следующем шаге.</p>
+          <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code>. В&nbsp;конце она выведет ваш <code>user_id</code>: он нужен на&nbsp;следующем шаге.</p>
         </li>
         <li>
           <h3>Подключите агента</h3>
           <div class="uid js-only">
-            <label for="uid">Ваш user_id из первого шага</label>
+            <label for="uid">Ваш user_id из&nbsp;первого шага</label>
             <input id="uid" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="12" placeholder="123456">
-            <small>Подставится во все команды ниже.</small>
+            <small>Подставится во&nbsp;все команды ниже.</small>
           </div>
-          <p>Замените <code>123456</code> на свой <code>user_id</code> и выберите клиент.</p>
+          <p>Замените <code>123456</code> на&nbsp;свой <code>user_id</code> и&nbsp;выберите клиент.</p>
           <div class="tabs" data-tabs="Клиент">
             <div role="tabpanel" id="panel-claude-code" tabindex="0">
               <h4 class="tab-title">Claude Code</h4>
@@ -316,7 +302,7 @@ KWORK_ENABLE_WRITES = "false"</code></pre>
               </figure>
             </div>
             <div role="tabpanel" id="panel-desktop" tabindex="0">
-              <h4 class="tab-title">Claude Desktop и Cursor</h4>
+              <h4 class="tab-title">Claude Desktop и&nbsp;Cursor</h4>
               <p>Claude Desktop: Settings → Developer → Edit Config, файл <code>claude_desktop_config.json</code>. Cursor: <code>~/.cursor/mcp.json</code> или <code>.cursor/mcp.json</code> проекта.</p>
               <figure class="code" data-copy>
                 <figcaption><span>mcp.json</span><span data-copy-slot></span></figcaption>
@@ -334,15 +320,15 @@ KWORK_ENABLE_WRITES = "false"</code></pre>
   }
 }</code></pre>
               </figure>
-              <p>Если Claude Desktop не находит <code>uvx</code>, укажите полный путь из <code>which uvx</code>.</p>
+              <p>Если Claude Desktop не&nbsp;находит <code>uvx</code>, укажите полный путь из&nbsp;<code>which uvx</code>.</p>
             </div>
           </div>
-          <p>Логин, пароль, токен и прокси в конфиг клиента не добавляйте: сервер с ними откажется запускаться.</p>
+          <p>Логин, пароль, токен и&nbsp;прокси в&nbsp;конфиг клиента не&nbsp;добавляйте: сервер с&nbsp;ними откажется запускаться.</p>
         </li>
         <li>
           <h3>Проверьте</h3>
-          <p>Перезапустите клиент и попросите агента: <span class="say-to-agent">«проверь статус аккаунта Kwork»</span>. Он покажет ваш <code>user_id</code> и имя.</p>
-          <p class="note">Чтобы агент мог отправлять отклики и сообщения, замените в конфиге <code>KWORK_ENABLE_WRITES=false</code> на <code>true</code> и перезапустите клиент. Подробности, решение проблем и ручная сверка отправок описаны в <a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
+          <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя.</p>
+          <p class="note">Чтобы агент мог отправлять отклики и&nbsp;сообщения, замените в&nbsp;конфиге <code>KWORK_ENABLE_WRITES=false</code> на&nbsp;<code>true</code> и&nbsp;перезапустите клиент. Подробности, решение проблем и&nbsp;ручная сверка отправок описаны в&nbsp;<a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
         </li>
       </ol>
     </div>
@@ -352,84 +338,67 @@ KWORK_ENABLE_WRITES = "false"</code></pre>
     <div class="container split">
       <div class="split-head">
         <h2 id="tools-title">22 инструмента</h2>
-        <p>Результаты типизированы, а пустой ответ всегда отличим от ошибки.</p>
+        <p>18 читают данные, 4 отвечают за&nbsp;отправку. Пустой ответ всегда отличим от&nbsp;ошибки.</p>
       </div>
       <div>
-        <p class="tools-count"><span>18 инструментов чтения</span><span class="w">4 инструмента записи</span></p>
         <table class="tools-table">
           <thead>
-            <tr><th scope="col">Область</th><th scope="col">Инструменты</th><th scope="col">Что делают</th></tr>
+            <tr><th scope="col">Что агент видит и&nbsp;делает</th><th scope="col">Инструменты</th></tr>
           </thead>
           <tbody>
             <tr>
-              <th scope="row">Аккаунт</th>
-              <td><code>account_status</code><code>get_connects</code></td>
-              <td>Какой аккаунт подключён, включена ли запись, есть ли несверенные отправки. Баланс коннектов.</td>
+              <th scope="row">Аккаунт<span>какой аккаунт подключён, включена ли отправка, баланс коннектов</span></th>
+              <td><code>account_status</code> <code>get_connects</code></td>
             </tr>
             <tr>
-              <th scope="row">Биржа проектов</th>
-              <td><code>discover_projects</code><code>get_project</code><code>get_exchange_info</code></td>
-              <td>Проекты биржи: избранные категории, вся биржа или выбранные категории, фильтры по цене и откликам. Сводка по бирже.</td>
+              <th scope="row">Биржа проектов<span>избранные категории, вся биржа или выбранные рубрики, фильтры по&nbsp;цене и&nbsp;откликам</span></th>
+              <td><code>discover_projects</code> <code>get_project</code> <code>get_exchange_info</code></td>
             </tr>
             <tr>
-              <th scope="row">Отклики</th>
-              <td><code>list_my_offers</code><code>get_offer</code></td>
-              <td>Ваши отклики.</td>
+              <th scope="row">Отклики<span>ваши отклики на&nbsp;проекты</span></th>
+              <td><code>list_my_offers</code> <code>get_offer</code></td>
             </tr>
             <tr>
-              <th scope="row">Заказы</th>
-              <td><code>list_worker_orders</code><code>get_order_details</code></td>
-              <td>Ваши заказы как продавца.</td>
+              <th scope="row">Заказы<span>ваши заказы как продавца</span></th>
+              <td><code>list_worker_orders</code> <code>get_order_details</code></td>
             </tr>
             <tr>
-              <th scope="row">Диалоги</th>
-              <td><code>list_dialogs</code><code>get_dialog</code></td>
-              <td>Диалоги и сообщения.</td>
+              <th scope="row">Диалоги<span>переписка с&nbsp;клиентами</span></th>
+              <td><code>list_dialogs</code> <code>get_dialog</code></td>
             </tr>
             <tr>
-              <th scope="row">Кворки</th>
-              <td><code>list_my_kworks</code><code>get_kwork_details</code></td>
-              <td>Ваши кворки.</td>
+              <th scope="row">Кворки<span>ваши кворки</span></th>
+              <td><code>list_my_kworks</code> <code>get_kwork_details</code></td>
             </tr>
             <tr>
-              <th scope="row">Пользователи</th>
-              <td><code>get_user_info</code><code>search_users</code></td>
-              <td>Профили пользователей.</td>
+              <th scope="row">Пользователи<span>профили пользователей</span></th>
+              <td><code>get_user_info</code> <code>search_users</code></td>
             </tr>
             <tr>
-              <th scope="row">Категории и уведомления</th>
-              <td><code>list_categories</code><code>list_favorite_categories</code><code>list_notifications</code></td>
-              <td>Категории, избранные категории и уведомления.</td>
+              <th scope="row">Категории и&nbsp;уведомления<span>рубрики биржи, избранное, уведомления</span></th>
+              <td><code>list_categories</code> <code>list_favorite_categories</code> <code>list_notifications</code></td>
             </tr>
             <tr class="write">
-              <th scope="row">Запись</th>
-              <td><code>prepare_write</code><code>commit_write</code><code>get_write_status</code><code>reconcile_write</code></td>
-              <td>Отклик на проект и его удаление, отправка, правка и удаление сообщения, отметка диалога прочитанным, сдача заказа на проверку, запуск и пауза кворка.</td>
+              <th scope="row">Отправка<span>отклик на&nbsp;проект и&nbsp;его удаление, отправка, правка и&nbsp;удаление сообщения, отметка диалога прочитанным, сдача заказа на&nbsp;проверку, запуск и&nbsp;пауза кворка</span></th>
+              <td><code>prepare_write</code> <code>commit_write</code> <code>get_write_status</code> <code>reconcile_write</code></td>
             </tr>
           </tbody>
         </table>
-      </div>
-    </div>
-  </section>
 
-  <section class="section" id="kwork-com" aria-labelledby="com-title">
-    <div class="container split">
-      <div class="split-head">
-        <h2 id="com-title">kwork.ru и kwork.com</h2>
-        <p>По умолчанию сервер работает с kwork.ru. Аккаунт и токен у сайтов общие, входить заново не нужно.</p>
-      </div>
-      <div>
-        <table class="sites">
-          <thead>
-            <tr><th scope="col">Возможность</th><th scope="col">kwork.ru</th><th scope="col">kwork.com</th></tr>
-          </thead>
-          <tbody>
-            <tr><th scope="row">Как выбрать сайт</th><td>по умолчанию</td><td>добавьте <code>KWORK_SITE=com</code></td></tr>
-            <tr><th scope="row">Биржа проектов и отклики на проекты</th><td class="yes">Есть</td><td class="no">Нет</td></tr>
-            <tr><th scope="row">Диалоги, заказы и кворки</th><td class="yes">Есть</td><td class="yes">Есть</td></tr>
-          </tbody>
-        </table>
-        <p class="section-foot">На kwork.com проект по ID по-прежнему можно прочитать, а диалоги, заказы и кворки работают как обычно.</p>
+        <div class="sites-block" id="kwork-com">
+          <h3>kwork.ru и&nbsp;kwork.com</h3>
+          <p>По умолчанию сервер работает с&nbsp;kwork.ru. Аккаунт и&nbsp;токен у&nbsp;сайтов общие, входить заново не&nbsp;нужно. Для kwork.com добавьте в&nbsp;конфиг <code>KWORK_SITE=com</code>.</p>
+          <table class="sites">
+            <thead>
+              <tr><th scope="col">Возможность</th><th scope="col">kwork.ru</th><th scope="col">kwork.com</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Биржа проектов и&nbsp;отклики на&nbsp;проекты</th><td class="yes">есть</td><td class="no">нет</td></tr>
+              <tr><th scope="row">Диалоги, заказы и&nbsp;кворки</th><td class="yes">есть</td><td class="yes">есть</td></tr>
+            </tbody>
+          </table>
+          <p class="section-foot">На kwork.com проект по&nbsp;ID по-прежнему можно прочитать.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -478,13 +447,12 @@ KWORK_ENABLE_WRITES = "false"</code></pre>
     <div class="foot-brand">
       <a class="brand" href="./" aria-label="kwork-mcp, на главную">
         <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-          <rect class="logo-bg" width="64" height="64" rx="14"/>
-          <path class="logo-k" d="M20 14v36M44 18L24 34l20 14" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="46" cy="16" r="6" fill="#f2b134"/>
+          <path class="logo-k" stroke-width="3.2" stroke-linejoin="round" d="M11.60 10.60 L20.00 10.60 L20.00 37.06 L33.63 23.43 L39.57 29.37 L35.32 33.62 L51.50 53.40 L40.65 53.40 L29.35 39.59 L20.00 48.94 L20.00 53.40 L11.60 53.40Z"/>
+          <path class="logo-spark" d="M48 6c1.1 6.2 3.8 8.9 10 10-6.2 1.1-8.9 3.8-10 10-1.1-6.2-3.8-8.9-10-10 6.2-1.1 8.9-3.8 10-10z"/>
         </svg>
         <span>kwork-mcp</span>
       </a>
-      <p>Независимый проект с открытым кодом под лицензией MIT. Автор: <a href="https://github.com/simonether">Simon Sudarushkin</a>. Kwork является товарным знаком своего правообладателя; проект с ним не связан.</p>
+      <p>Независимый проект с&nbsp;открытым кодом под лицензией MIT. Автор: <a href="https://github.com/simonether">Simon Sudarushkin</a>. Kwork является товарным знаком своего правообладателя; проект с&nbsp;ним не&nbsp;связан.</p>
     </div>
     <nav class="foot-col" aria-labelledby="foot-project">
       <h2 id="foot-project">Проект</h2>
@@ -492,7 +460,7 @@ KWORK_ENABLE_WRITES = "false"</code></pre>
         <li><a href="https://github.com/simonether/kwork-mcp">GitHub</a></li>
         <li><a href="https://pypi.org/project/kwork-mcp/">PyPI</a></li>
         <li><a href="https://github.com/simonether/kwork-mcp/blob/main/CHANGELOG.md">Изменения</a></li>
-        <li><a href="https://github.com/simonether/kwork-mcp/issues">Сообщить о проблеме</a></li>
+        <li><a href="https://github.com/simonether/kwork-mcp/issues">Сообщить о&nbsp;проблеме</a></li>
       </ul>
     </nav>
     <nav class="foot-col" aria-labelledby="foot-docs">
