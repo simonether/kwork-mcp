@@ -142,7 +142,7 @@ def validate_steady_state_server_config(config: KworkConfig) -> KworkConfig:
     """Reject every credential source that belongs exclusively to bootstrap."""
 
     if config.token_value or config.login or config.password_value or config.phone_last_value or config.proxy_value:
-        raise ValueError("secret-bearing configuration is forbidden for the normal MCP server; use kwork-mcp-bootstrap")
+        raise ValueError("логин, пароль, токен и прокси не задаются в конфиге сервера: используйте kwork-mcp login")
     if config.expected_user_id is None or not config.persist_token:
         raise ValueError("сервер работает только с привязанным аккаунтом и KWORK_PERSIST_TOKEN=true")
     return config
