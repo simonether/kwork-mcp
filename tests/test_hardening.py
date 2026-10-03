@@ -113,7 +113,7 @@ def test_main_runs_stdio_without_banner_or_update_check(
     [
         ({"KWORK_STATE_DIR": "relative/state"}, "KWORK_STATE_DIR"),
         ({"KWORK_EXPECTED_USER_ID": "not-a-number"}, "KWORK_EXPECTED_USER_ID"),
-        ({}, "KWORK_EXPECTED_USER_ID"),
+        ({}, "аккаунт Kwork не подключён"),
         (
             {
                 "KWORK_EXPECTED_USER_ID": "42",
@@ -127,10 +127,14 @@ def test_main_runs_stdio_without_banner_or_update_check(
 def test_main_reports_invalid_configuration_without_traceback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
     env: dict[str, str],
     expected: str,
 ) -> None:
     _clear_kwork_environment(monkeypatch)
+    # The default state directory lives under HOME; never read the real one.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     for name, value in env.items():
         monkeypatch.setenv(name, value)
     monkeypatch.setattr(

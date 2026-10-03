@@ -40,8 +40,13 @@ non-sticky `0777/child-0700` намеренно неприемлем.
 ## Credentials и account identity
 
 - `.env` из cwd никогда не загружается.
-- Login/password/phone/proxy вводятся только separate `kwork-mcp-bootstrap` через
-  настоящий TTY/getpass; server не принимает их ни через argv, ни через env.
+- Login/password/phone/proxy вводятся только в `kwork-mcp login` через настоящий
+  TTY/getpass; server не принимает их ни через argv, ни через env. CLI не выводит
+  argv даже при ошибке, поэтому случайно вставленный пароль не попадёт в терминал.
+- Аккаунт подтверждает человек при `login`. Без `KWORK_EXPECTED_USER_ID` server
+  обслуживает единственный сохранённый аккаунт и отказывается запускаться, если их
+  несколько: выбор между аккаунтами всегда явный. Identity check через `get_me`
+  выполняется так же, как с явным ID.
 - Proxy URL допускает только `http`, `socks4` и `socks5` с явным port (то, что
   поддерживает connector); `https` и `socks5h` отклоняются. URL сохраняется как
   введён: account record перепроверяется на точное равенство.
@@ -136,7 +141,7 @@ marker — только в `submission_unknown`.
 `submission_unknown` означает: **не повторять commit и не создавать новый
 idempotency key для того же действия**. Используйте `reconcile_write`; если
 read-back недостаточен для однозначного ответа, оператор должен проверить Kwork
-вручную и зафиксировать исход через `kwork-mcp-bootstrap resolve-write <write_id>
+вручную и зафиксировать исход через `kwork-mcp resolve-write <write_id>
 succeeded|absent` (только TTY и явное «да»; тот же `KWORK_*` policy env, что у
 server). До разрешения такого состояния durable account barrier блокирует все
 новые writes: ошибка `ambiguous_write` несёт `related_write_id`, а

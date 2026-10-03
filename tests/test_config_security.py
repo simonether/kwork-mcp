@@ -27,7 +27,7 @@ def test_configuration_never_loads_dotenv_from_cwd(
     for name in tuple(os.environ):
         if name.upper().startswith("KWORK_"):
             monkeypatch.delenv(name, raising=False)
-    with pytest.raises(ValidationError, match="credentialless startup"):
+    with pytest.raises(ValidationError, match="запуск без логина и пароля"):
         KworkConfig()
 
 

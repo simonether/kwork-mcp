@@ -57,7 +57,7 @@
       "image": "https://simonether.github.io/kwork-mcp/og.png",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS, Linux",
-      "softwareVersion": "1.3.0",
+      "softwareVersion": "1.4.0",
       "softwareRequirements": "Python 3.12–3.14, uv",
       "programmingLanguage": "Python",
       "inLanguage": "ru",
@@ -82,8 +82,8 @@
       "mainEntity": [
         {"@type": "Question", "name": "Это официальный инструмент Kwork?", "acceptedAnswer": {"@type": "Answer", "text": "Нет. Это независимый проект с открытым кодом под лицензией MIT. Kwork его не выпускает и не поддерживает."}},
         {"@type": "Question", "name": "Может ли агент откликнуться на проект без меня?", "acceptedAnswer": {"@type": "Answer", "text": "Нет. Запись выключена по умолчанию. Когда вы её включаете, агент сначала показывает точный текст, цену и получателя, и запрос уходит на Kwork только после вашего подтверждения."}},
-        {"@type": "Question", "name": "Что будет, если связь оборвётся при отправке?", "acceptedAnswer": {"@type": "Answer", "text": "Сервер не повторит запись сам и не угадает исход. Новые отправки для аккаунта ждут, пока агент не сверит результат с Kwork или вы не разберёте запись вручную командой kwork-mcp-bootstrap resolve-write."}},
-        {"@type": "Question", "name": "Где хранятся логин и пароль?", "acceptedAnswer": {"@type": "Answer", "text": "Нигде. Их спрашивает только kwork-mcp-bootstrap через скрытый ввод, а на диск сохраняется токен в ~/.local/state/kwork-mcp с правами 0600. Токен не шифруется, поэтому включите шифрование диска."}},
+        {"@type": "Question", "name": "Что будет, если связь оборвётся при отправке?", "acceptedAnswer": {"@type": "Answer", "text": "Сервер не повторит запись сам и не угадает исход. Новые отправки для аккаунта ждут, пока агент не сверит результат с Kwork или вы не разберёте запись вручную командой kwork-mcp resolve-write."}},
+        {"@type": "Question", "name": "Где хранятся логин и пароль?", "acceptedAnswer": {"@type": "Answer", "text": "Нигде. Их спрашивает только kwork-mcp login через скрытый ввод, а на диск сохраняется токен в ~/.local/state/kwork-mcp с правами 0600. Токен не шифруется, поэтому включите шифрование диска."}},
         {"@type": "Question", "name": "Какие клиенты поддерживаются?", "acceptedAnswer": {"@type": "Answer", "text": "Claude Code, Claude Desktop, Codex, Cursor и другие MCP-клиенты, которые умеют запускать локальный сервер через stdio."}},
         {"@type": "Question", "name": "Работает ли на Windows?", "acceptedAnswer": {"@type": "Answer", "text": "Нет, только macOS и Linux."}},
         {"@type": "Question", "name": "Сколько стоит?", "acceptedAnswer": {"@type": "Answer", "text": "Нисколько: kwork-mcp распространяется бесплатно под лицензией MIT."}}
@@ -135,10 +135,10 @@
         <div class="hero-actions">
           <a class="btn btn-primary" href="#start">Установить</a>
           <div class="cmd" data-copy>
-            <code class="sh">uvx --from kwork-mcp==1.3.0 kwork-mcp-bootstrap</code>
+            <code class="sh">uvx kwork-mcp@1.4.0 login</code>
           </div>
         </div>
-        <p class="hero-facts">Бесплатно и&nbsp;с&nbsp;открытым кодом (MIT). macOS и&nbsp;Linux, Python 3.12–3.14. Версия 1.3.0 на&nbsp;<a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
+        <p class="hero-facts">Бесплатно и&nbsp;с&nbsp;открытым кодом (MIT). macOS и&nbsp;Linux, Python 3.12–3.14. Версия 1.4.0 на&nbsp;<a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
       </div>
       <picture class="hero-art">
         <source type="image/avif" srcset="img/hero-640.avif 640w, img/hero-1200.avif 1200w" sizes="(max-width: 900px) min(88vw, 440px), 560px">
@@ -232,7 +232,7 @@
         <ul class="guards">
           <li>
             <h3>По умолчанию только чтение</h3>
-            <p>Пока в&nbsp;конфиге стоит <code>KWORK_ENABLE_WRITES=false</code>, агент ничего не&nbsp;отправляет на&nbsp;Kwork.</p>
+            <p>Пока вы не&nbsp;добавили в&nbsp;конфиг <code>KWORK_ENABLE_WRITES=true</code>, агент ничего не&nbsp;отправляет на&nbsp;Kwork.</p>
           </li>
           <li>
             <h3>Пароль не&nbsp;попадает в&nbsp;конфиг</h3>
@@ -240,7 +240,7 @@
           </li>
           <li>
             <h3>Только ваш аккаунт</h3>
-            <p>Сервер работает с&nbsp;аккаунтом из&nbsp;<code>KWORK_EXPECTED_USER_ID</code> и&nbsp;проверяет его перед каждой отправкой.</p>
+            <p>Сервер работает с&nbsp;аккаунтом, который вы подтвердили при входе, и&nbsp;проверяет его перед каждой отправкой.</p>
           </li>
           <li>
             <h3>Чужой текст не&nbsp;команда</h3>
@@ -263,59 +263,43 @@
           <p>Запустите в&nbsp;обычном терминале:</p>
           <figure class="code" data-copy>
             <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-            <pre><code class="sh">uvx --from kwork-mcp==1.3.0 kwork-mcp-bootstrap</code></pre>
+            <pre><code class="sh">uvx kwork-mcp@1.4.0 login</code></pre>
           </figure>
-          <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code>. В&nbsp;конце она выведет ваш <code>user_id</code>: он нужен на&nbsp;следующем шаге.</p>
+          <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code>. В&nbsp;конце она напечатает готовую команду подключения.</p>
         </li>
         <li>
           <h3>Подключите агента</h3>
-          <div class="uid js-only">
-            <label for="uid">Ваш user_id из&nbsp;первого шага</label>
-            <input id="uid" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="12" placeholder="123456">
-            <small>Подставится во&nbsp;все команды ниже.</small>
-          </div>
-          <p>Замените <code>123456</code> на&nbsp;свой <code>user_id</code> и&nbsp;выберите клиент.</p>
+          <p>Выберите клиент. Сервер сам найдёт аккаунт, с&nbsp;которым вы вошли.</p>
           <div class="tabs" data-tabs="Клиент">
             <div role="tabpanel" id="panel-claude-code" tabindex="0">
               <h4 class="tab-title">Claude Code</h4>
               <figure class="code" data-copy>
                 <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-<pre><code class="sh">claude mcp add kwork --scope user \
-  -e KWORK_EXPECTED_USER_ID=<span class="ph">123456</span> \
-  -e KWORK_PERSIST_TOKEN=true \
-  -e KWORK_ENABLE_WRITES=false \
-  -- uvx --from kwork-mcp==1.3.0 kwork-mcp</code></pre>
+<pre><code class="sh">claude mcp add kwork --scope user -- uvx kwork-mcp@1.4.0</code></pre>
               </figure>
             </div>
             <div role="tabpanel" id="panel-codex" tabindex="0">
               <h4 class="tab-title">Codex</h4>
               <figure class="code" data-copy>
-                <figcaption><span>~/.codex/config.toml</span><span data-copy-slot></span></figcaption>
-<pre><code>[mcp_servers.kwork]
-command = "uvx"
-args = ["--from", "kwork-mcp==1.3.0", "kwork-mcp"]
-
-[mcp_servers.kwork.env]
-KWORK_EXPECTED_USER_ID = "<span class="ph">123456</span>"
-KWORK_PERSIST_TOKEN = "true"
-KWORK_ENABLE_WRITES = "false"</code></pre>
+                <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
+<pre><code class="sh">codex mcp add kwork -- uvx kwork-mcp@1.4.0</code></pre>
               </figure>
             </div>
+            <div role="tabpanel" id="panel-cursor" tabindex="0">
+              <h4 class="tab-title">Cursor</h4>
+              <p><a class="btn btn-primary" href="https://cursor.com/install-mcp?name=kwork&amp;config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS40LjAiXX0%3D">Добавить в&nbsp;Cursor</a></p>
+              <p>Кнопка откроет Cursor и&nbsp;предложит добавить сервер. Вручную: блок из&nbsp;вкладки «Claude Desktop» в&nbsp;<code>~/.cursor/mcp.json</code>.</p>
+            </div>
             <div role="tabpanel" id="panel-desktop" tabindex="0">
-              <h4 class="tab-title">Claude Desktop и&nbsp;Cursor</h4>
-              <p>Claude Desktop: Settings → Developer → Edit Config, файл <code>claude_desktop_config.json</code>. Cursor: <code>~/.cursor/mcp.json</code> или <code>.cursor/mcp.json</code> проекта.</p>
+              <h4 class="tab-title">Claude Desktop</h4>
+              <p>Settings → Developer → Edit Config, файл <code>claude_desktop_config.json</code>.</p>
               <figure class="code" data-copy>
-                <figcaption><span>mcp.json</span><span data-copy-slot></span></figcaption>
+                <figcaption><span>claude_desktop_config.json</span><span data-copy-slot></span></figcaption>
 <pre><code>{
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["--from", "kwork-mcp==1.3.0", "kwork-mcp"],
-      "env": {
-        "KWORK_EXPECTED_USER_ID": "<span class="ph">123456</span>",
-        "KWORK_PERSIST_TOKEN": "true",
-        "KWORK_ENABLE_WRITES": "false"
-      }
+      "args": ["kwork-mcp@1.4.0"]
     }
   }
 }</code></pre>
@@ -323,12 +307,12 @@ KWORK_ENABLE_WRITES = "false"</code></pre>
               <p>Если Claude Desktop не&nbsp;находит <code>uvx</code>, укажите полный путь из&nbsp;<code>which uvx</code>.</p>
             </div>
           </div>
-          <p>Логин, пароль, токен и&nbsp;прокси в&nbsp;конфиг клиента не&nbsp;добавляйте: сервер с&nbsp;ними откажется запускаться.</p>
+          <p>Если вы входили в&nbsp;несколько аккаунтов, укажите нужный: <code>-e KWORK_EXPECTED_USER_ID=123456</code>. Логин, пароль, токен и&nbsp;прокси в&nbsp;конфиг клиента не&nbsp;добавляйте: сервер с&nbsp;ними откажется запускаться.</p>
         </li>
         <li>
           <h3>Проверьте</h3>
           <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя.</p>
-          <p class="note">Чтобы агент мог отправлять отклики и&nbsp;сообщения, замените в&nbsp;конфиге <code>KWORK_ENABLE_WRITES=false</code> на&nbsp;<code>true</code> и&nbsp;перезапустите клиент. Подробности, решение проблем и&nbsp;ручная сверка отправок описаны в&nbsp;<a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
+          <p class="note">Чтобы агент мог отправлять отклики и&nbsp;сообщения, добавьте в&nbsp;конфиг <code>KWORK_ENABLE_WRITES=true</code> (в&nbsp;Claude Code: <code>-e KWORK_ENABLE_WRITES=true</code>) и&nbsp;перезапустите клиент. Подробности, решение проблем и&nbsp;ручная сверка отправок описаны в&nbsp;<a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
         </li>
       </ol>
     </div>
@@ -419,11 +403,11 @@ KWORK_ENABLE_WRITES = "false"</code></pre>
         </details>
         <details>
           <summary>Что будет, если связь оборвётся при отправке?</summary>
-          <div class="answer"><p>Сервер не повторит запись сам и не угадает исход. Новые отправки для аккаунта ждут, пока агент не сверит результат с Kwork или вы не разберёте запись вручную командой <code>kwork-mcp-bootstrap resolve-write</code>.</p></div>
+          <div class="answer"><p>Сервер не повторит запись сам и не угадает исход. Новые отправки для аккаунта ждут, пока агент не сверит результат с Kwork или вы не разберёте запись вручную командой <code>kwork-mcp resolve-write</code>.</p></div>
         </details>
         <details>
           <summary>Где хранятся логин и пароль?</summary>
-          <div class="answer"><p>Нигде. Их спрашивает только <code>kwork-mcp-bootstrap</code> через скрытый ввод, а на диск сохраняется токен в <code>~/.local/state/kwork-mcp</code> с правами <code>0600</code>. Токен не шифруется, поэтому включите шифрование диска.</p></div>
+          <div class="answer"><p>Нигде. Их спрашивает только <code>kwork-mcp login</code> через скрытый ввод, а на диск сохраняется токен в <code>~/.local/state/kwork-mcp</code> с правами <code>0600</code>. Токен не шифруется, поэтому включите шифрование диска.</p></div>
         </details>
         <details>
           <summary>Какие клиенты поддерживаются?</summary>

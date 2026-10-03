@@ -9,14 +9,14 @@ Normal MCP читает только allowlisted safe policy/identity settings �
 
 | Переменная | Default | Назначение |
 |---|---:|---|
-| `KWORK_EXPECTED_USER_ID` | нет | Обязательный positive ID для normal startup и writes |
+| `KWORK_EXPECTED_USER_ID` | единственный привязанный | Какой аккаунт обслуживать; нужен, только если `login` привязал несколько |
 | `KWORK_EXPECTED_USERNAME` | пусто | Дополнительная проверка username; ведущий `@` нормализуется |
 | `KWORK_ENABLE_WRITES` | `false` | Явно включает safe write protocol |
 | `KWORK_PERSIST_TOKEN` | `true` | Обязательный account-bound steady-state store |
 | `KWORK_SITE` | `ru` | Сайт Kwork: `ru` — kwork.ru, `com` — kwork.com |
 
 `KWORK_SITE=com` направляет API в `api.kwork.com`, а web-flow в `kwork.com`.
-Аккаунт и токен у сайтов общие, поэтому повторный bootstrap не нужен. На kwork.com
+Аккаунт и токен у сайтов общие, поэтому повторный вход не нужен. На kwork.com
 нет биржи проектов: `discover_projects`, `list_favorite_categories` и
 `submit_offer` отвечают `site_unsupported` без запроса к Kwork. Часть данных
 различается по сайтам (например, список заказов), поэтому запись подтверждается и
@@ -24,16 +24,35 @@ Normal MCP читает только allowlisted safe policy/identity settings �
 возвращается `site_mismatch`, а запись остаётся нетронутой. `account_status.site`
 показывает текущий сайт.
 
-До первого запуска выполните отдельную CLI в настоящем TTY:
+До первого запуска выполните вход в настоящем TTY:
 
 ```bash
-kwork-mcp-bootstrap
+uvx kwork-mcp@<версия> login
 ```
 
-Без `KWORK_EXPECTED_USER_ID` bootstrap после входа показывает найденный аккаунт
+Без `KWORK_EXPECTED_USER_ID` login после входа показывает найденный аккаунт
 (`username` и `user_id`) и привязывает его только после явного подтверждения в TTY;
 логин выполняется один раз. Если ID задан заранее
-(`KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap`), аккаунт обязан с ним совпасть.
+(`KWORK_EXPECTED_USER_ID=123456 kwork-mcp login`), аккаунт обязан с ним совпасть. В
+конце login печатает команды `claude mcp add` и `codex mcp add`, в которые уже
+подставлены нужные переменные: `KWORK_SITE`, нестандартный `KWORK_STATE_DIR` и
+`KWORK_EXPECTED_USER_ID`, если привязанных аккаунтов несколько.
+
+`kwork-mcp` без аргументов запускает MCP-сервер; аргументы выбирают команды для
+терминала (`login`, `pending-writes`, `resolve-write`, `--help`, `--version`).
+Прежнее имя `kwork-mcp-bootstrap` работает так же, а без аргументов выполняет вход.
+Неизвестная команда завершается кодом `2`, и аргументы не выводятся.
+
+### Какой аккаунт обслуживает сервер
+
+Если `KWORK_EXPECTED_USER_ID` не задан, сервер смотрит имена файлов
+`tokens/account-<id>.json` в `KWORK_STATE_DIR`. Один файл означает аккаунт, который
+человек подтвердил при входе, и сервер обслуживает его. Ни одного файла:
+сервер не запускается и просит выполнить `login`. Несколько файлов: сервер не
+выбирает сам и просит указать `KWORK_EXPECTED_USER_ID`. Содержимое токена читает
+только token store со всеми проверками прав, а `get_me` сверяет фактический аккаунт
+с выбранным ID, поэтому посторонний файл может выбрать только аккаунт, на котором
+запуск сорвётся. Те же правила действуют для `pending-writes` и `resolve-write`.
 
 Login, password, optional last-four phone digits и optional proxy URL считываются
 через `getpass`, никогда не принимаются в argv и не выводятся. Proxy URL допускает
@@ -41,7 +60,7 @@ Login, password, optional last-four phone digits и optional proxy URL счит�
 fragment отклоняются; URL сохраняется как введён, чтобы записи rc1 оставались
 валидными. Bootstrap выполняет
 только authentication + `get_me`, проверяет exact numeric ID (заданный или
-подтверждённый) и затем сохраняет record. Normal `kwork-mcp` требует `EXPECTED_USER_ID + PERSIST_TOKEN=true` и
+подтверждённый) и затем сохраняет record. Normal `kwork-mcp` требует привязанный аккаунт и `PERSIST_TOKEN=true` и
 проверяет сохранённый token через `get_me`; если record отсутствует, возвращается
 `auth_required`, если token отвергнут — `auth_expired`. Интерактивного fallback и
 циклического fresh login нет.
@@ -51,8 +70,8 @@ Normal entrypoint намеренно отклоняет непустые `KWORK_
 Codex/Claude MCP configuration, даже если host помечает их как secrets.
 
 Конфигурация проверяется в `main()` до запуска server: некорректные значения
-перечисляются по именам `KWORK_*`, а конфликт настроек (например, отсутствие
-`EXPECTED_USER_ID + PERSIST_TOKEN=true` или `RETRY_BACKOFF_MAX` меньше base)
+перечисляются по именам `KWORK_*`, а конфликт настроек (например, нет привязанного
+аккаунта, их несколько без `EXPECTED_USER_ID` или `RETRY_BACKOFF_MAX` меньше base)
 выводится текстом нарушенного правила, без значений и без traceback; exit code `2`. Server запускается с `show_banner=False`, поэтому FastMCP не
 выполняет PyPI update check и не пишет cache вне `KWORK_STATE_DIR`.
 
@@ -83,7 +102,7 @@ special bits отклоняются. Trusted non-final aliases раскрыва�
 Legacy record без proxy означает direct connection. Record с `https` proxy или без
 явного port (такой proxy не работал и в 1.0.0rc1) при загрузке отклоняется как
 `validation`; регистр scheme не важен. Чтобы добавить, заменить или
-удалить proxy, остановите процессы account/state, повторите bootstrap и
+удалить proxy, остановите процессы account/state, повторите login и
 перезапустите MCP; уже открытый client record не перечитывает. Не размещайте общий
 state на NFS или другом filesystem без надёжных POSIX locks/SQLite semantics.
 Production runtime использует `fcntl`/`flock` и поддерживает Linux/macOS, но не
@@ -146,15 +165,15 @@ Cancellation до durable remote marker освобождает claim в `prepare
 может прийти к выводу, оператор проверяет операцию на сайте Kwork и фиксирует исход:
 
 ```bash
-KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap pending-writes
-KWORK_EXPECTED_USER_ID=123456 kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent
+uvx kwork-mcp@<версия> pending-writes
+uvx kwork-mcp@<версия> resolve-write <write_id> succeeded|absent
 ```
 
 `pending-writes` печатает JSON в stdout; поле `site` у каждой записи говорит, на
 kwork.ru или kwork.com искать операцию. `resolve-write` работает только в
 интерактивном TTY, показывает запись и требует явного ввода «да»; разрешить можно
 только `submission_unknown`. Команды открывают тот же state DB, поэтому запускайте
-их с теми же `KWORK_EXPECTED_USER_ID`, `KWORK_STATE_DIR` и policy-переменными
+их с теми же `KWORK_EXPECTED_USER_ID` (если он задан у сервера), `KWORK_STATE_DIR` и policy-переменными
 `KWORK_*`, что и server: иначе fingerprint общей policy (см. ниже) не совпадёт и
 команда завершится `contract_drift`.
 

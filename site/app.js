@@ -58,21 +58,6 @@
     });
   })();
 
-  /* ---------- user_id substitution ---------- */
-  (function userId() {
-    var input = document.getElementById("uid");
-    if (!input) return;
-    var placeholders = $all(".ph");
-    input.addEventListener("input", function () {
-      var digits = input.value.replace(/\D+/g, "").slice(0, 12);
-      if (digits !== input.value) input.value = digits;
-      placeholders.forEach(function (node) {
-        node.textContent = digits || "123456";
-        node.classList.toggle("is-set", digits !== "");
-      });
-    });
-  })();
-
   /* ---------- Tabs (built from the panels, so no-JS shows them stacked) ---------- */
   (function tabs() {
     $all("[data-tabs]").forEach(function (group, index) {

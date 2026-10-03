@@ -12,22 +12,30 @@ __all__ = ["__version__", "main"]
 def main(argv: Sequence[str] | None = None) -> None:
     args = list(sys.argv[1:] if argv is None else argv)
     if args:
-        sys.stderr.write("kwork-mcp не принимает аргументы; используйте только безопасную environment-конфигурацию.\n")
-        raise SystemExit(2)
+        # Arguments select the human terminal commands (login, pending-writes,
+        # resolve-write); the MCP client always starts the bare command. The
+        # CLI never echoes argv, so a pasted secret does not reach the output.
+        from kwork_mcp.bootstrap import main as cli_main
+
+        cli_main(args)
+        return
     if secret_server_environment_present():
         sys.stderr.write(
-            "kwork-mcp отклонил secret-bearing environment; выполните kwork-mcp-bootstrap "
-            "и запускайте MCP только с account ID и защищённым store.\n"
+            "kwork-mcp отклонил секреты в окружении: логин, пароль, токен и прокси вводятся "
+            "только в «kwork-mcp login», а не в конфиге MCP-клиента.\n"
         )
         raise SystemExit(2)
     from pydantic import ValidationError
 
-    from kwork_mcp.config import KworkConfig, validate_steady_state_server_config
+    from kwork_mcp.config import AccountSelectionError, load_server_config
     from kwork_mcp.server import create_server
 
     # Validator messages are static text without configured values.
     try:
-        config = validate_steady_state_server_config(KworkConfig())
+        config = load_server_config()
+    except AccountSelectionError as exc:
+        sys.stderr.write(f"kwork-mcp: {exc}.\n")
+        raise SystemExit(2) from None
     except ValidationError as exc:
         problems = sorted(
             {
@@ -38,7 +46,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             }
         )
         sys.stderr.write("kwork-mcp: некорректная конфигурация: " + "; ".join(problems) + ".\n")
-        sys.stderr.write("Сначала выполните kwork-mcp-bootstrap; справка: docs/configuration.md.\n")
+        sys.stderr.write("Сначала выполните «kwork-mcp login»; справка: kwork-mcp --help.\n")
         raise SystemExit(2) from None
     except ValueError as exc:
         sys.stderr.write(f"kwork-mcp: некорректная конфигурация: {exc}.\n")

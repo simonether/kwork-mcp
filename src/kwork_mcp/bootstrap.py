@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import getpass
 import json
+import shlex
 import sys
 import warnings
 from collections.abc import Awaitable, Callable, Sequence
@@ -17,7 +18,13 @@ from typing import Any, Self, TextIO, cast
 from kwork.schema.actor import Actor
 from pydantic import SecretStr, ValidationError, model_validator
 
-from kwork_mcp.config import KworkConfig, contains_unsafe_text_codepoint
+from kwork_mcp.config import (
+    AccountSelectionError,
+    KworkConfig,
+    bound_account_ids,
+    contains_unsafe_text_codepoint,
+    select_bound_account,
+)
 from kwork_mcp.coordination import CoordinationStore, StoredWrite
 from kwork_mcp.errors import GatewayError, classify_upstream_error
 from kwork_mcp.models import ErrorCode, WriteState
@@ -34,26 +41,38 @@ from kwork_mcp.upstream import make_client, set_client_token
 from kwork_mcp.version import __version__
 
 _HELP = """\
-kwork-mcp-bootstrap — безопасная одноразовая авторизация Kwork
+kwork-mcp — MCP-сервер для Kwork
 
-Команда не принимает credentials через argv или .env. Login/password, последние
-цифры телефона и proxy вводятся скрыто через настоящий TTY. Если
-KWORK_EXPECTED_USER_ID не задан, bootstrap покажет найденный аккаунт и попросит
-подтвердить привязку; если задан, аккаунт обязан совпасть с ним.
+Без аргументов kwork-mcp запускает MCP-сервер (stdio): так его запускает
+MCP-клиент. Команды для терминала:
+
+  kwork-mcp login            войти в Kwork и привязать аккаунт (один раз)
+  kwork-mcp pending-writes   отправки с неизвестным исходом
+  kwork-mcp resolve-write <write_id> succeeded|absent
+                             вручную зафиксировать исход такой отправки
+  kwork-mcp --version        версия
+
+login спрашивает логин, пароль, последние 4 цифры телефона и прокси скрытым
+вводом в настоящем терминале; через аргументы и .env они не принимаются. Если
+KWORK_EXPECTED_USER_ID не задан, login покажет найденный аккаунт и попросит
+подтвердить привязку; если задан, аккаунт обязан с ним совпасть. В конце login
+печатает команды, которые подключают сервер к Claude Code и Codex.
+
+Если вход выполнен для одного аккаунта, сервер и команды выше работают с ним
+сами. Если аккаунтов несколько, укажите нужный в KWORK_EXPECTED_USER_ID.
 
 Для kwork.com задайте KWORK_SITE=com. Аккаунт и токен у kwork.ru и kwork.com
-общие, поэтому повторный bootstrap при смене сайта не нужен.
+общие, поэтому повторный вход при смене сайта не нужен.
 
-Если существует legacy ~/.kwork_token с owner=current user и mode 0600, CLI
-предложит явно проверить и импортировать его. Обычный MCP server legacy-файл
-никогда не импортирует.
+Если существует legacy ~/.kwork_token с owner=current user и mode 0600, login
+предложит проверить и импортировать его. Сервер legacy-файл никогда не
+импортирует.
 
-Записи с неизвестным исходом (submission_unknown) блокируют новые commit для
-аккаунта, пока их не сверит reconcile_write. Если read-back не может прийти к
-выводу, проверьте операцию на сайте Kwork и зафиксируйте результат вручную:
+Отправка с неизвестным исходом (submission_unknown) блокирует новые отправки
+аккаунта, пока её не сверит reconcile_write. Если сверка не приходит к выводу,
+проверьте операцию на сайте Kwork и зафиксируйте исход командой resolve-write.
 
-  kwork-mcp-bootstrap pending-writes
-  kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent
+kwork-mcp-bootstrap — прежнее имя этих команд, оно продолжает работать.
 """
 
 _RESOLUTION_STATES = {
@@ -475,13 +494,10 @@ def _terminal_safe(text: str) -> str:
     )
 
 
-def _write_admin_scope(config: KworkConfig) -> str:
-    if config.expected_user_id is None:
-        raise GatewayError(
-            ErrorCode.ACCOUNT_BINDING_REQUIRED,
-            diagnostic="write_admin_requires_expected_user_id",
-        )
-    return f"account-{config.expected_user_id}"
+def _write_admin_account(config: KworkConfig) -> int:
+    if config.expected_user_id is not None:
+        return config.expected_user_id
+    return select_bound_account(config.state_dir)
 
 
 def _write_summary(record: StoredWrite) -> dict[str, Any]:
@@ -510,7 +526,8 @@ async def _run_write_admin(
     command, *rest = argv
     try:
         config = _base_bootstrap_config()
-        scope = _write_admin_scope(config)
+        account_id = _write_admin_account(config)
+        scope = f"account-{account_id}"
         ledger = config.state_dir / "coordination.sqlite3"
         if not ledger.is_file():
             # Opening would create an empty ledger and report nothing pending.
@@ -527,14 +544,14 @@ async def _run_write_admin(
             records = await coordinator.list_unresolved_writes(scope)
             listing = {
                 "schema_version": "1.0",
-                "account_id": config.expected_user_id,
+                "account_id": account_id,
                 "writes": [_write_summary(record) for record in records],
             }
             stdout.write(_terminal_safe(json.dumps(listing, ensure_ascii=False, sort_keys=True)) + "\n")
             return 0
 
         if len(rest) != 2 or rest[1] not in _RESOLUTION_STATES:
-            stderr.write("Использование: kwork-mcp-bootstrap resolve-write <write_id> succeeded|absent\n")
+            stderr.write("Использование: kwork-mcp resolve-write <write_id> succeeded|absent\n")
             return 2
         write_id, outcome = rest
         if not (stdin.isatty() and stderr.isatty()):
@@ -577,12 +594,56 @@ async def _run_write_admin(
     except (EOFError, KeyboardInterrupt):
         stderr.write("Отменено; запись не изменена.\n")
         return 130
+    except AccountSelectionError as exc:
+        stderr.write(f"Не выполнено: {exc}.\n")
+        return 2
     except ValidationError:
         stderr.write("Ошибка конфигурации: проверьте KWORK_EXPECTED_USER_ID и KWORK_STATE_DIR.\n")
         return 2
     except GatewayError as error:
         stderr.write(f"Не выполнено: {error.code.value}: {error.safe_message}\n")
         return 1
+
+
+_SITE_URL = "https://simonether.github.io/kwork-mcp/#start"
+
+
+def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_retained: bool) -> str:
+    """What to run next, with every setting the server needs to find this account."""
+
+    try:
+        several_accounts = len(bound_account_ids(config.state_dir)) > 1
+    except AccountSelectionError:
+        # The token is already stored; naming the account is always correct.
+        several_accounts = True
+    environment: list[str] = []
+    if several_accounts:
+        environment.append(f"KWORK_EXPECTED_USER_ID={actor.id}")
+    if config.site != "ru":
+        environment.append(f"KWORK_SITE={config.site}")
+    # A client may start the server without XDG_STATE_HOME, so anything but
+    # the plain default location is passed explicitly.
+    if config.state_dir != Path.home() / ".local" / "state" / "kwork-mcp":
+        environment.append(f"KWORK_STATE_DIR={config.state_dir}")
+    name = "kwork" if config.site == "ru" else f"kwork-{config.site}"
+    claude = ["claude", "mcp", "add", name, "--scope", "user"]
+    codex = ["codex", "mcp", "add", name]
+    for item in environment:
+        claude += ["-e", item]
+        codex += ["--env", item]
+    server = ["--", "uvx", f"kwork-mcp@{__version__}"]
+    lines = [
+        f"Аккаунт {_terminal_safe(str(actor.username))} (user_id {actor.id}) подключён.",
+        "",
+        "Добавьте kwork-mcp в агента. Claude Code:",
+        "  " + _terminal_safe(shlex.join(claude + server)),
+        "Codex:",
+        "  " + _terminal_safe(shlex.join(codex + server)),
+        f"Claude Desktop, Cursor и другие клиенты: {_SITE_URL}",
+    ]
+    if legacy_file_retained:
+        lines += ["", "Файл ~/.kwork_token не удалён; если он больше не нужен, удалите его сами."]
+    return "\n".join(lines) + "\n"
 
 
 async def run_bootstrap_cli(
@@ -595,27 +656,34 @@ async def run_bootstrap_cli(
     client_factory: ClientFactory = make_client,
     home_dir: Path | None = None,
 ) -> int:
-    """Run the human CLI while keeping stdout machine-safe and allowlisted."""
+    """Run the human CLI; prompts go to stderr, results and next steps to stdout."""
 
-    if list(argv) in (["--help"], ["-h"]):
+    args = list(argv)
+    if args in (["--help"], ["-h"]):
         stdout.write(_HELP)
         return 0
-    if list(argv) == ["--version"]:
+    if args == ["--version"]:
         stdout.write(f"{__version__}\n")
         return 0
-    if argv and argv[0] in {"pending-writes", "resolve-write"}:
-        return await _run_write_admin(argv, stdin=stdin, stdout=stdout, stderr=stderr)
-    if argv:
-        stderr.write("Ошибка: kwork-mcp-bootstrap не принимает параметры авторизации через argv.\n")
+    if args and args[0] in {"pending-writes", "resolve-write"}:
+        return await _run_write_admin(args, stdin=stdin, stdout=stdout, stderr=stderr)
+    if args == ["login"]:
+        args = []
+    if args:
+        # Never echo argv: it may hold a credential pasted by mistake.
+        stderr.write(
+            "Ошибка: неизвестная команда. Доступны login, pending-writes и resolve-write; "
+            "логин и пароль через аргументы не принимаются. Справка: kwork-mcp --help.\n"
+        )
         return 2
     try:
         interactive = stdin.isatty() and stderr.isatty()
     except Exception:
         with contextlib.suppress(Exception):
-            stderr.write("Ошибка: bootstrap не смог проверить интерактивный TTY.\n")
+            stderr.write("Ошибка: не удалось проверить, что login запущен в интерактивном терминале (TTY).\n")
         return 2
     if not interactive:
-        stderr.write("Ошибка: bootstrap требует настоящий интерактивный TTY.\n")
+        stderr.write("Ошибка: login запускается только в интерактивном терминале (TTY).\n")
         return 2
 
     try:
@@ -708,7 +776,7 @@ async def run_bootstrap_cli(
                 stderr=stderr,
             )
             if answer.casefold() not in _CONFIRMATIONS:
-                stderr.write("Bootstrap отменён: credential store не изменён.\n")
+                stderr.write("Вход отменён: сохранённый токен не изменён.\n")
                 return 1
             config = _auth_config(
                 base,
@@ -722,44 +790,25 @@ async def run_bootstrap_cli(
             token_store=store,
             client_factory=client_factory,
         )
-        result: dict[str, Any] = {
-            "schema_version": "1.0",
-            "verified": True,
-            "account": {
-                "user_id": actor.id,
-                "username": actor.username,
-            },
-            "environment": {
-                "KWORK_EXPECTED_USER_ID": str(actor.id),
-                "KWORK_ENABLE_WRITES": "false",
-                "KWORK_PERSIST_TOKEN": "true",
-            },
-            "credential_store": "account_scoped_token",
-        }
-        if config.site != "ru":
-            result["environment"]["KWORK_SITE"] = config.site
-        if used_legacy:
-            result["legacy_file_retained"] = True
-        stdout.write(json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n")
+        stdout.write(_connection_instructions(actor, config, legacy_file_retained=used_legacy))
         return 0
     except (EOFError, KeyboardInterrupt, getpass.GetPassWarning):
-        stderr.write("Bootstrap отменён без изменения credential store.\n")
+        stderr.write("Вход отменён: сохранённый токен не изменён.\n")
         return 130
     except ValidationError as exc:
         invalid = sorted({_field_label(str(error["loc"][0])) for error in exc.errors() if error.get("loc")})
         if invalid:
-            stderr.write("Ошибка конфигурации bootstrap: некорректное значение — " + ", ".join(invalid) + ".\n")
+            stderr.write("Ошибка в настройках входа: некорректное значение — " + ", ".join(invalid) + ".\n")
         else:
             stderr.write(
-                "Ошибка конфигурации bootstrap. Проверьте KWORK_EXPECTED_USER_ID, "
-                "KWORK_STATE_DIR и KWORK_PERSIST_TOKEN.\n"
+                "Ошибка в настройках входа. Проверьте KWORK_EXPECTED_USER_ID, KWORK_STATE_DIR и KWORK_PERSIST_TOKEN.\n"
             )
         return 2
     except GatewayError as error:
-        stderr.write(f"Bootstrap не выполнен: {error.code.value}: {error.safe_message}\n")
+        stderr.write(f"Вход не выполнен: {error.code.value}: {error.safe_message}\n")
         return 1
     except Exception:
-        stderr.write("Bootstrap не выполнен из-за внутренней ошибки.\n")
+        stderr.write("Вход не выполнен из-за внутренней ошибки.\n")
         return 1
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import json
 import os
 from pathlib import Path
 
@@ -91,7 +90,9 @@ async def test_bootstrap_without_account_id_binds_the_confirmed_account(
     assert code == 0
     assert "found-user" in stderr
     assert "4242" in stderr
-    assert json.loads(stdout)["environment"]["KWORK_EXPECTED_USER_ID"] == "4242"
+    assert stdout.startswith("Аккаунт found-user (user_id 4242) подключён.")
+    # The only bound account needs no KWORK_EXPECTED_USER_ID in the client config.
+    assert "KWORK_EXPECTED_USER_ID" not in stdout
     # One real sign-in; the bind step reuses the token it produced.
     assert sum(client.get_token_calls for client in clients) == 1
     assert configs[-1].expected_user_id == 4242
@@ -157,7 +158,7 @@ async def test_legacy_token_import_without_account_id_discovers_without_signing_
     )
 
     assert code == 0
-    assert json.loads(stdout.getvalue())["account"] == {"user_id": 4242, "username": "found-user"}
+    assert stdout.getvalue().startswith("Аккаунт found-user (user_id 4242) подключён.")
     assert sum(client.get_token_calls for client in clients) == 0
 
 
