@@ -454,7 +454,7 @@ async def test_status_names_an_explicit_account_and_reads_the_ledger(
 
     assert code == 0
     assert "(user_id 77), из KWORK_EXPECTED_USER_ID" in output
-    assert "Отправка: с подтверждением каждой" in output
+    assert "Отправка: с подтверждением каждой, агент ждёт" in output
     assert "Несверенные отправки: нет" in output
 
 

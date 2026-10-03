@@ -52,7 +52,6 @@ class ErrorCode(StrEnum):
     INVALID_CONFIRMATION = "invalid_confirmation"
     WRITE_IN_PROGRESS = "write_in_progress"
     WRITE_DISABLED = "write_disabled"
-    WRITE_DECLINED = "write_declined"
     NOT_FOUND = "not_found"
     VALIDATION = "validation"
     SITE_UNSUPPORTED = "site_unsupported"
@@ -61,7 +60,7 @@ class ErrorCode(StrEnum):
     INTERNAL = "internal"
 
 
-WriteConfirmation = Literal["client", "chat", "none", "off"]
+WriteConfirmation = Literal["chat", "none"]
 
 
 class ErrorInfo(BaseModel):
@@ -123,12 +122,8 @@ class AccountData(BaseModel):
     expected_username: str | None
     binding_state: Literal["bound", "unbound_reads_only"]
     writes: Literal["confirm", "auto", "off"] = Field(
-        description="KWORK_WRITES: confirm asks the user before each send, auto lets the agent send, off is read-only.",
-    )
-    write_confirmation: WriteConfirmation | None = Field(
-        default=None,
-        description="How this client confirms a send: client (a dialog in the MCP client), chat (the agent asks "
-        "in the conversation), none (auto), off (no sends).",
+        description="KWORK_WRITES: confirm needs the user's yes before each send, auto lets the agent send, "
+        "off is read-only.",
     )
     write_ready: bool
     unresolved_write_ids: list[str] = Field(
@@ -412,9 +407,8 @@ class WriteStatusData(BaseModel):
     confirmation_token: str | None = None
     confirmation: WriteConfirmation | None = Field(
         default=None,
-        description="How commit_write will be confirmed: client means the server shows the user a dialog itself, "
-        "so do not ask again in chat; chat means show the exact payload and commit only after the user's explicit "
-        "yes; none means KWORK_WRITES=auto.",
+        description="Who confirms commit_write: chat means show the user the exact text, price and recipient and "
+        "commit only after their explicit yes; none means KWORK_WRITES=auto, the agent may commit on its own.",
     )
     result: dict[str, JsonValue] | None = None
     terminal_error: ErrorInfo | None = None

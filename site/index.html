@@ -57,7 +57,7 @@
       "image": "https://simonether.github.io/kwork-mcp/og.png",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS, Linux",
-      "softwareVersion": "1.5.0",
+      "softwareVersion": "1.5.1",
       "softwareRequirements": "Python 3.12–3.14, uv",
       "programmingLanguage": "Python",
       "inLanguage": "ru",
@@ -81,10 +81,10 @@
       "@type": "FAQPage",
       "mainEntity": [
         {"@type": "Question", "name": "Это официальный инструмент Kwork?", "acceptedAnswer": {"@type": "Answer", "text": "Нет. Это независимый проект с открытым кодом под лицензией MIT. Kwork его не выпускает и не поддерживает."}},
-        {"@type": "Question", "name": "Может ли агент откликнуться на проект без меня?", "acceptedAnswer": {"@type": "Answer", "text": "Только если вы сами это разрешили. По умолчанию каждую отправку вы подтверждаете: в Claude Code, Cursor и Codex кнопкой в окне, которое показывает сервер, в Claude Desktop словом «да» в чате. С KWORK_WRITES=auto агент отправляет сам, с KWORK_WRITES=off только читает."}},
+        {"@type": "Question", "name": "Может ли агент откликнуться на проект без меня?", "acceptedAnswer": {"@type": "Answer", "text": "Только если вы сами это разрешили. По умолчанию агент показывает точный текст, цену и получателя и отправляет только после вашего «да». С KWORK_WRITES=auto он отправляет сам, с KWORK_WRITES=off только читает."}},
         {"@type": "Question", "name": "Что будет, если связь оборвётся при отправке?", "acceptedAnswer": {"@type": "Answer", "text": "Сервер не повторит запись сам и не угадает исход. Новые отправки для аккаунта ждут, пока агент не сверит результат с Kwork или вы не разберёте запись вручную командой kwork-mcp resolve-write."}},
         {"@type": "Question", "name": "Где хранятся логин и пароль?", "acceptedAnswer": {"@type": "Answer", "text": "Нигде. Их спрашивает только kwork-mcp login через скрытый ввод, а на диск сохраняется токен в ~/.local/state/kwork-mcp с правами 0600. Токен не шифруется, поэтому включите шифрование диска."}},
-        {"@type": "Question", "name": "Как сменить аккаунт?", "acceptedAnswer": {"@type": "Answer", "text": "Выполните в терминале uvx kwork-mcp@1.5.0 logout, а затем login с другим аккаунтом. Команда status покажет, с каким аккаунтом и сайтом запустится сервер, без запросов к Kwork."}},
+        {"@type": "Question", "name": "Как сменить аккаунт?", "acceptedAnswer": {"@type": "Answer", "text": "Выполните в терминале uvx kwork-mcp@1.5.1 logout, а затем login с другим аккаунтом. Команда status покажет, с каким аккаунтом и сайтом запустится сервер, без запросов к Kwork."}},
         {"@type": "Question", "name": "Какие клиенты поддерживаются?", "acceptedAnswer": {"@type": "Answer", "text": "Claude Code, Claude Desktop, Codex, Cursor и другие MCP-клиенты, которые умеют запускать локальный сервер через stdio."}},
         {"@type": "Question", "name": "Работает ли на Windows?", "acceptedAnswer": {"@type": "Answer", "text": "Нет, только macOS и Linux."}},
         {"@type": "Question", "name": "Сколько стоит?", "acceptedAnswer": {"@type": "Answer", "text": "Нисколько: kwork-mcp распространяется бесплатно под лицензией MIT."}}
@@ -136,10 +136,10 @@
         <div class="hero-actions">
           <a class="btn btn-primary" href="#start">Установить</a>
           <div class="cmd" data-copy>
-            <code class="sh">uvx kwork-mcp@1.5.0 login</code>
+            <code class="sh">uvx kwork-mcp@1.5.1 login</code>
           </div>
         </div>
-        <p class="hero-facts">Бесплатно и&nbsp;с&nbsp;открытым кодом (MIT). macOS и&nbsp;Linux, Python 3.12–3.14. Версия 1.5.0 на&nbsp;<a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
+        <p class="hero-facts">Бесплатно и&nbsp;с&nbsp;открытым кодом (MIT). macOS и&nbsp;Linux, Python 3.12–3.14. Версия 1.5.1 на&nbsp;<a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
       </div>
       <picture class="hero-art">
         <source type="image/avif" srcset="img/hero-640.avif 640w, img/hero-1200.avif 1200w" sizes="(max-width: 900px) min(88vw, 440px), 560px">
@@ -233,7 +233,7 @@
         <ul class="guards">
           <li>
             <h3>Каждая отправка с&nbsp;вашего «да»</h3>
-            <p>Перед отправкой вы видите точный текст, цену и&nbsp;получателя. В&nbsp;Claude Code, Cursor и&nbsp;Codex окно показывает сам сервер, и&nbsp;нажимаете в&nbsp;нём вы, а&nbsp;не&nbsp;агент.</p>
+            <p>Перед отправкой агент показывает точный текст, цену и&nbsp;получателя и&nbsp;ждёт вашего ответа. Большинство клиентов вдобавок спрашивают разрешение на&nbsp;вызов отправки.</p>
           </li>
           <li>
             <h3>Пароль не&nbsp;попадает в&nbsp;конфиг</h3>
@@ -264,7 +264,7 @@
           <p>Запустите в&nbsp;обычном терминале:</p>
           <figure class="code" data-copy>
             <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-            <pre><code class="sh">uvx kwork-mcp@1.5.0 login</code></pre>
+            <pre><code class="sh">uvx kwork-mcp@1.5.1 login</code></pre>
           </figure>
           <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code>. В&nbsp;конце она напечатает готовые команды подключения, а&nbsp;для Claude Desktop&nbsp;— блок с&nbsp;полным путём к&nbsp;<code>uvx</code>.</p>
         </li>
@@ -276,19 +276,19 @@
               <h4 class="tab-title">Claude Code</h4>
               <figure class="code" data-copy>
                 <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-<pre><code class="sh">claude mcp add kwork --scope user -- uvx kwork-mcp@1.5.0</code></pre>
+<pre><code class="sh">claude mcp add kwork --scope user -- uvx kwork-mcp@1.5.1</code></pre>
               </figure>
             </div>
             <div role="tabpanel" id="panel-codex" tabindex="0">
               <h4 class="tab-title">Codex</h4>
               <figure class="code" data-copy>
                 <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-<pre><code class="sh">codex mcp add kwork -- uvx kwork-mcp@1.5.0</code></pre>
+<pre><code class="sh">codex mcp add kwork -- uvx kwork-mcp@1.5.1</code></pre>
               </figure>
             </div>
             <div role="tabpanel" id="panel-cursor" tabindex="0">
               <h4 class="tab-title">Cursor</h4>
-              <p><a class="btn btn-primary" href="https://cursor.com/install-mcp?name=kwork&amp;config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS41LjAiXX0%3D">Добавить в&nbsp;Cursor</a></p>
+              <p><a class="btn btn-primary" href="https://cursor.com/install-mcp?name=kwork&amp;config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS41LjEiXX0%3D">Добавить в&nbsp;Cursor</a></p>
               <p>Кнопка откроет Cursor и&nbsp;предложит добавить сервер. Вручную: блок из&nbsp;вкладки «Claude Desktop» в&nbsp;<code>~/.cursor/mcp.json</code>.</p>
             </div>
             <div role="tabpanel" id="panel-desktop" tabindex="0">
@@ -300,7 +300,7 @@
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["kwork-mcp@1.5.0"]
+      "args": ["kwork-mcp@1.5.1"]
     }
   }
 }</code></pre>
@@ -312,7 +312,7 @@
         </li>
         <li>
           <h3>Проверьте</h3>
-          <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя. Без клиента то&nbsp;же видно в&nbsp;терминале: <code>uvx kwork-mcp@1.5.0 status</code>.</p>
+          <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя. Без клиента то&nbsp;же видно в&nbsp;терминале: <code>uvx kwork-mcp@1.5.1 status</code>.</p>
           <p class="note">Каждую отправку агент сначала покажет вам на&nbsp;подтверждение. Чтобы он отправлял сам, добавьте в&nbsp;конфиг <code>KWORK_WRITES=auto</code>, для одного только чтения&nbsp;— <code>KWORK_WRITES=off</code> (в&nbsp;Claude Code: <code>-e KWORK_WRITES=off</code>). Подробности, решение проблем и&nbsp;ручная сверка отправок описаны в&nbsp;<a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
         </li>
       </ol>
@@ -400,7 +400,7 @@
         </details>
         <details>
           <summary>Может ли агент откликнуться на проект без меня?</summary>
-          <div class="answer"><p>Только если вы сами это разрешили. По умолчанию каждую отправку вы подтверждаете: в Claude Code, Cursor и Codex кнопкой в окне, которое показывает сервер, в Claude Desktop словом «да» в чате. С <code>KWORK_WRITES=auto</code> агент отправляет сам, с <code>KWORK_WRITES=off</code> только читает.</p></div>
+          <div class="answer"><p>Только если вы сами это разрешили. По умолчанию агент показывает точный текст, цену и получателя и отправляет только после вашего «да». С <code>KWORK_WRITES=auto</code> он отправляет сам, с <code>KWORK_WRITES=off</code> только читает.</p></div>
         </details>
         <details>
           <summary>Что будет, если связь оборвётся при отправке?</summary>
@@ -412,7 +412,7 @@
         </details>
         <details>
           <summary>Как сменить аккаунт?</summary>
-          <div class="answer"><p>Выполните в&nbsp;терминале <code>uvx kwork-mcp@1.5.0 logout</code>, а&nbsp;затем <code>login</code> с&nbsp;другим аккаунтом. Команда <code>status</code> покажет, с&nbsp;каким аккаунтом и&nbsp;сайтом запустится сервер, без запросов к&nbsp;Kwork.</p></div>
+          <div class="answer"><p>Выполните в&nbsp;терминале <code>uvx kwork-mcp@1.5.1 logout</code>, а&nbsp;затем <code>login</code> с&nbsp;другим аккаунтом. Команда <code>status</code> покажет, с&nbsp;каким аккаунтом и&nbsp;сайтом запустится сервер, без запросов к&nbsp;Kwork.</p></div>
         </details>
         <details>
           <summary>Какие клиенты поддерживаются?</summary>

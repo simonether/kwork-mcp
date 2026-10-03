@@ -62,19 +62,10 @@ def gateway_from_context(ctx: Context) -> KworkGateway:
     return gateway
 
 
-def write_confirmation(ctx: Context, writes: str) -> WriteConfirmation:
-    """How a send is confirmed for this client under KWORK_WRITES."""
+def write_confirmation(writes: str) -> WriteConfirmation:
+    """Who confirms a send under KWORK_WRITES: the user in chat, or nobody (auto)."""
 
-    if writes == "off":
-        return "off"
-    if writes == "auto":
-        return "none"
-    capabilities = ctx.session.client_capabilities
-    elicitation = capabilities.elicitation if capabilities is not None else None
-    # An empty elicitation capability predates the form/url split and means form.
-    if elicitation is not None and (elicitation.form is not None or elicitation.url is None):
-        return "client"
-    return "chat"
+    return "none" if writes == "auto" else "chat"
 
 
 def correlation_id() -> str:

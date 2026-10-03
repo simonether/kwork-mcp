@@ -63,7 +63,6 @@ _SAFE_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.INVALID_CONFIRMATION: "Подтверждение не соответствует подготовленной операции.",
     ErrorCode.WRITE_IN_PROGRESS: "Эту операцию уже выполняет другой процесс.",
     ErrorCode.WRITE_DISABLED: "Отправка выключена: сервер запущен с KWORK_WRITES=off, доступно только чтение.",
-    ErrorCode.WRITE_DECLINED: "Пользователь не подтвердил отправку в окне клиента; на Kwork ничего не ушло.",
     ErrorCode.NOT_FOUND: "Запрошенный объект Kwork не найден.",
     ErrorCode.VALIDATION: "Параметры операции не прошли проверку.",
     ErrorCode.SITE_UNSUPPORTED: "Операция недоступна на выбранном сайте Kwork: биржа проектов есть только на kwork.ru.",

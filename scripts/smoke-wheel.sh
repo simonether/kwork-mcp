@@ -24,7 +24,7 @@ import kwork_mcp
 from kwork_mcp.bootstrap import run_bootstrap_cli
 from kwork_mcp.server import create_server
 
-assert kwork_mcp.__version__ == "1.5.0"
+assert kwork_mcp.__version__ == "1.5.1"
 assert callable(run_bootstrap_cli)
 create_server()
 scripts = {
@@ -39,9 +39,9 @@ assert scripts == {
 PY
 
 "${runner[@]}" kwork-mcp-bootstrap --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp-bootstrap --version)" == "1.5.0" ]]
+[[ "$("${runner[@]}" kwork-mcp-bootstrap --version)" == "1.5.1" ]]
 "${runner[@]}" kwork-mcp --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp --version)" == "1.5.0" ]]
+[[ "$("${runner[@]}" kwork-mcp --version)" == "1.5.1" ]]
 
 set +e
 "${runner[@]}" kwork-mcp login </dev/null >login.stdout 2>login.stderr
@@ -56,7 +56,7 @@ KWORK_STATE_DIR="${smoke_dir}/state" "${runner[@]}" kwork-mcp status >status.std
 status_status="$?"
 set -e
 [[ "$status_status" -eq 2 ]]
-grep -q "kwork-mcp 1.5.0" status.stdout
+grep -q "kwork-mcp 1.5.1" status.stdout
 [[ ! -e "${smoke_dir}/state" ]]
 
 set +e
