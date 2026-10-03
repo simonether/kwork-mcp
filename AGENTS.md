@@ -12,15 +12,15 @@ durable `prepare → commit → reconcile` write protocol) on FastMCP 4 / MCP SD
 - `uv run python -m pytest tests/ -q` — tests
 - `uv run python -m pytest tests/ -q --cov=kwork_mcp --cov-report=term-missing` — tests + coverage (gate: 92% branch)
 - `uv run kwork-mcp` — start the server (stdio); needs a bootstrapped account
-- `uv run kwork-mcp login` — human TTY CLI: account auth; also `pending-writes`, `resolve-write`
-  (`kwork-mcp-bootstrap` is the old alias)
+- `uv run kwork-mcp login` — human TTY CLI: account auth; also `status`, `logout`, `pending-writes`,
+  `resolve-write` (`kwork-mcp-bootstrap` is the old alias)
 
 ## Project map
 
 ```
 src/kwork_mcp/
   __init__.py       main(): bare command = stdio server (rejects secret env, no banner); args → terminal CLI
-  bootstrap.py      terminal CLI: login (TTY auth → account-bound store, prints client commands), write resolution
+  bootstrap.py      terminal CLI: login (TTY auth → store, prints client commands), status, logout, write resolution
   config.py         KworkConfig (pydantic-settings, KWORK_ prefix), bound-account selection, proxy validation
   server.py         create_server(): FastMCP app, lifespan, SERVER_INSTRUCTIONS, unknown-tool guard
   session.py        KworkSessionManager: lazy auth, account identity checks, call_read / call_write_step

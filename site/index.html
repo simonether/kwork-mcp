@@ -84,6 +84,7 @@
         {"@type": "Question", "name": "Может ли агент откликнуться на проект без меня?", "acceptedAnswer": {"@type": "Answer", "text": "Нет. Запись выключена по умолчанию. Когда вы её включаете, агент сначала показывает точный текст, цену и получателя, и запрос уходит на Kwork только после вашего подтверждения."}},
         {"@type": "Question", "name": "Что будет, если связь оборвётся при отправке?", "acceptedAnswer": {"@type": "Answer", "text": "Сервер не повторит запись сам и не угадает исход. Новые отправки для аккаунта ждут, пока агент не сверит результат с Kwork или вы не разберёте запись вручную командой kwork-mcp resolve-write."}},
         {"@type": "Question", "name": "Где хранятся логин и пароль?", "acceptedAnswer": {"@type": "Answer", "text": "Нигде. Их спрашивает только kwork-mcp login через скрытый ввод, а на диск сохраняется токен в ~/.local/state/kwork-mcp с правами 0600. Токен не шифруется, поэтому включите шифрование диска."}},
+        {"@type": "Question", "name": "Как сменить аккаунт?", "acceptedAnswer": {"@type": "Answer", "text": "Выполните в терминале uvx kwork-mcp@1.4.0 logout, а затем login с другим аккаунтом. Команда status покажет, с каким аккаунтом и сайтом запустится сервер, без запросов к Kwork."}},
         {"@type": "Question", "name": "Какие клиенты поддерживаются?", "acceptedAnswer": {"@type": "Answer", "text": "Claude Code, Claude Desktop, Codex, Cursor и другие MCP-клиенты, которые умеют запускать локальный сервер через stdio."}},
         {"@type": "Question", "name": "Работает ли на Windows?", "acceptedAnswer": {"@type": "Answer", "text": "Нет, только macOS и Linux."}},
         {"@type": "Question", "name": "Сколько стоит?", "acceptedAnswer": {"@type": "Answer", "text": "Нисколько: kwork-mcp распространяется бесплатно под лицензией MIT."}}
@@ -265,7 +266,7 @@
             <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
             <pre><code class="sh">uvx kwork-mcp@1.4.0 login</code></pre>
           </figure>
-          <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code>. В&nbsp;конце она напечатает готовую команду подключения.</p>
+          <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code>. В&nbsp;конце она напечатает готовые команды подключения, а&nbsp;для Claude Desktop&nbsp;— блок с&nbsp;полным путём к&nbsp;<code>uvx</code>.</p>
         </li>
         <li>
           <h3>Подключите агента</h3>
@@ -304,14 +305,14 @@
   }
 }</code></pre>
               </figure>
-              <p>Если Claude Desktop не&nbsp;находит <code>uvx</code>, укажите полный путь из&nbsp;<code>which uvx</code>.</p>
+              <p>Claude Desktop не&nbsp;видит <code>uvx</code> из&nbsp;терминала, поэтому возьмите этот блок из&nbsp;вывода <code>login</code>: в&nbsp;нём уже указан полный путь к&nbsp;<code>uvx</code>.</p>
             </div>
           </div>
           <p>Если вы входили в&nbsp;несколько аккаунтов, укажите нужный: <code>-e KWORK_EXPECTED_USER_ID=123456</code>. Логин, пароль, токен и&nbsp;прокси в&nbsp;конфиг клиента не&nbsp;добавляйте: сервер с&nbsp;ними откажется запускаться.</p>
         </li>
         <li>
           <h3>Проверьте</h3>
-          <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя.</p>
+          <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя. Без клиента то&nbsp;же видно в&nbsp;терминале: <code>uvx kwork-mcp@1.4.0 status</code>.</p>
           <p class="note">Чтобы агент мог отправлять отклики и&nbsp;сообщения, добавьте в&nbsp;конфиг <code>KWORK_ENABLE_WRITES=true</code> (в&nbsp;Claude Code: <code>-e KWORK_ENABLE_WRITES=true</code>) и&nbsp;перезапустите клиент. Подробности, решение проблем и&nbsp;ручная сверка отправок описаны в&nbsp;<a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
         </li>
       </ol>
@@ -408,6 +409,10 @@
         <details>
           <summary>Где хранятся логин и пароль?</summary>
           <div class="answer"><p>Нигде. Их спрашивает только <code>kwork-mcp login</code> через скрытый ввод, а на диск сохраняется токен в <code>~/.local/state/kwork-mcp</code> с правами <code>0600</code>. Токен не шифруется, поэтому включите шифрование диска.</p></div>
+        </details>
+        <details>
+          <summary>Как сменить аккаунт?</summary>
+          <div class="answer"><p>Выполните в&nbsp;терминале <code>uvx kwork-mcp@1.4.0 logout</code>, а&nbsp;затем <code>login</code> с&nbsp;другим аккаунтом. Команда <code>status</code> покажет, с&nbsp;каким аккаунтом и&nbsp;сайтом запустится сервер, без запросов к&nbsp;Kwork.</p></div>
         </details>
         <details>
           <summary>Какие клиенты поддерживаются?</summary>

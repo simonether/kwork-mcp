@@ -398,7 +398,8 @@ def select_bound_account(state_dir: Path) -> int:
     if len(accounts) > 1:
         listed = ", ".join(str(account) for account in accounts)
         raise AccountSelectionError(
-            f"подключено несколько аккаунтов Kwork ({listed}): укажите нужный в KWORK_EXPECTED_USER_ID"
+            f"подключено несколько аккаунтов Kwork ({listed}): укажите нужный в KWORK_EXPECTED_USER_ID "
+            "или удалите лишний вход командой «kwork-mcp logout <user_id>»"
         )
     return accounts[0]
 

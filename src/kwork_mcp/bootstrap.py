@@ -6,7 +6,9 @@ import asyncio
 import contextlib
 import getpass
 import json
+import os
 import shlex
+import shutil
 import sys
 import warnings
 from collections.abc import Awaitable, Callable, Sequence
@@ -23,6 +25,8 @@ from kwork_mcp.config import (
     KworkConfig,
     bound_account_ids,
     contains_unsafe_text_codepoint,
+    load_server_config,
+    secret_server_environment_present,
     select_bound_account,
 )
 from kwork_mcp.coordination import CoordinationStore, StoredWrite
@@ -47,6 +51,8 @@ kwork-mcp — MCP-сервер для Kwork
 MCP-клиент. Команды для терминала:
 
   kwork-mcp login            войти в Kwork и привязать аккаунт (один раз)
+  kwork-mcp status           какой аккаунт и сайт обслужит сервер, без запросов к Kwork
+  kwork-mcp logout [user_id] удалить сохранённый вход с этого компьютера
   kwork-mcp pending-writes   отправки с неизвестным исходом
   kwork-mcp resolve-write <write_id> succeeded|absent
                              вручную зафиксировать исход такой отправки
@@ -59,7 +65,8 @@ KWORK_EXPECTED_USER_ID не задан, login покажет найденный 
 печатает команды, которые подключают сервер к Claude Code и Codex.
 
 Если вход выполнен для одного аккаунта, сервер и команды выше работают с ним
-сами. Если аккаунтов несколько, укажите нужный в KWORK_EXPECTED_USER_ID.
+сами. Если аккаунтов несколько, укажите нужный в KWORK_EXPECTED_USER_ID или
+удалите лишний вход командой logout.
 
 Для kwork.com задайте KWORK_SITE=com. Аккаунт и токен у kwork.ru и kwork.com
 общие, поэтому повторный вход при смене сайта не нужен.
@@ -494,7 +501,7 @@ def _terminal_safe(text: str) -> str:
     )
 
 
-def _write_admin_account(config: KworkConfig) -> int:
+def _selected_account(config: KworkConfig) -> int:
     if config.expected_user_id is not None:
         return config.expected_user_id
     return select_bound_account(config.state_dir)
@@ -526,7 +533,7 @@ async def _run_write_admin(
     command, *rest = argv
     try:
         config = _base_bootstrap_config()
-        account_id = _write_admin_account(config)
+        account_id = _selected_account(config)
         scope = f"account-{account_id}"
         ledger = config.state_dir / "coordination.sqlite3"
         if not ledger.is_file():
@@ -632,6 +639,11 @@ def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_r
         claude += ["-e", item]
         codex += ["--env", item]
     server = ["--", "uvx", f"kwork-mcp@{__version__}"]
+    # Claude Desktop starts servers without the shell PATH, so it gets the
+    # absolute uvx path of the terminal that ran login.
+    desktop: dict[str, Any] = {"command": shutil.which("uvx") or "uvx", "args": [f"kwork-mcp@{__version__}"]}
+    if environment:
+        desktop["env"] = dict(item.split("=", 1) for item in environment)
     lines = [
         f"Аккаунт {_terminal_safe(str(actor.username))} (user_id {actor.id}) подключён.",
         "",
@@ -639,11 +651,157 @@ def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_r
         "  " + _terminal_safe(shlex.join(claude + server)),
         "Codex:",
         "  " + _terminal_safe(shlex.join(codex + server)),
-        f"Claude Desktop, Cursor и другие клиенты: {_SITE_URL}",
+        'Claude Desktop и Cursor: в "mcpServers" файла claude_desktop_config.json или ~/.cursor/mcp.json',
+        "  " + _terminal_safe(f'"{name}": ' + json.dumps(desktop, ensure_ascii=False)),
+        f"Подробнее: {_SITE_URL}",
     ]
     if legacy_file_retained:
         lines += ["", "Файл ~/.kwork_token не удалён; если он больше не нужен, удалите его сами."]
     return "\n".join(lines) + "\n"
+
+
+def _parse_account_id(value: str) -> int | None:
+    return int(value) if value.isascii() and value.isdigit() and 0 < len(value) <= 18 and int(value) > 0 else None
+
+
+def _load_record(store: SecureTokenStore, account_id: int) -> TokenRecord | None:
+    scope = f"account-{account_id}"
+    lock = store.acquire_lock(scope)
+    try:
+        return store.load_locked(scope)
+    finally:
+        store.release_lock(lock)
+
+
+async def _run_logout(
+    rest: Sequence[str],
+    *,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> int:
+    """Forget one account's stored login on this computer; Kwork is not contacted."""
+
+    account_arg = _parse_account_id(rest[0]) if len(rest) == 1 else None
+    if len(rest) > 1 or (rest and account_arg is None):
+        stderr.write("Использование: kwork-mcp logout [user_id]\n")
+        return 2
+    try:
+        if not (stdin.isatty() and stderr.isatty()):
+            stderr.write("Ошибка: logout запускается только в интерактивном терминале (TTY).\n")
+            return 2
+        config = _base_bootstrap_config()
+        account_id = account_arg if account_arg is not None else _selected_account(config)
+        store = SecureTokenStore(config.state_dir, lock_timeout=config.auth_lock_timeout)
+        record = _load_record(store, account_id)
+        if record is None:
+            stderr.write(f"Сохранённого входа для user_id {account_id} нет.\n")
+            return 1
+        account = f"{_terminal_safe(record.username)} (user_id {account_id})"
+        answer = _visible_prompt(
+            f"Удалить сохранённый вход {account} с этого компьютера? [y/N]: ",
+            stdin=stdin,
+            stderr=stderr,
+        )
+        if answer.casefold() not in _CONFIRMATIONS:
+            stderr.write("Отменено; вход не удалён.\n")
+            return 1
+        scope = f"account-{account_id}"
+        lock = store.acquire_lock(scope)
+        try:
+            store.delete_locked(scope)
+        finally:
+            store.release_lock(lock)
+        stdout.write(
+            f"Вход {account} удалён с этого компьютера. Чтобы сервер снова работал с этим аккаунтом, выполните login.\n"
+        )
+        return 0
+    except (EOFError, KeyboardInterrupt):
+        stderr.write("Отменено; вход не удалён.\n")
+        return 130
+    except AccountSelectionError as exc:
+        stderr.write(f"Не выполнено: {exc}.\n")
+        return 2
+    except ValidationError:
+        stderr.write("Ошибка конфигурации: проверьте KWORK_EXPECTED_USER_ID и KWORK_STATE_DIR.\n")
+        return 2
+    except GatewayError as error:
+        stderr.write(f"Не выполнено: {error.code.value}: {error.safe_message}\n")
+        return 1
+
+
+async def _run_status(rest: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
+    """Report what a server started with this environment would serve, offline."""
+
+    if rest:
+        stderr.write("Ошибка: status не принимает аргументы.\n")
+        return 2
+    lines = [f"kwork-mcp {__version__}"]
+    stopped = "Сервер с переменными KWORK_* этого терминала не запустится. "
+
+    def reason(text: str) -> str:
+        return text[:1].upper() + text[1:]
+
+    if secret_server_environment_present():
+        stdout.write("\n".join([*lines, stopped + "В окружении есть логин, пароль, токен или прокси."]) + "\n")
+        return 2
+    try:
+        config = load_server_config()
+        account_id = cast(int, config.expected_user_id)
+        record = _load_record(SecureTokenStore(config.state_dir, lock_timeout=config.auth_lock_timeout), account_id)
+    except AccountSelectionError as exc:
+        stdout.write("\n".join([*lines, f"{stopped}{reason(str(exc))}."]) + "\n")
+        return 2
+    except ValidationError as exc:
+        # Same reading as the server's startup: field names, or the rule text.
+        problems = sorted(
+            {
+                f"KWORK_{str(error['loc'][0]).upper()}"
+                if error.get("loc")
+                else str(error["msg"]).removeprefix("Value error, ")
+                for error in exc.errors(include_input=False)
+            }
+        )
+        problem = "Некорректная конфигурация: " + "; ".join(problems)
+        stdout.write("\n".join([*lines, f"{stopped}{problem}."]) + "\n")
+        return 2
+    except ValueError as exc:
+        stdout.write("\n".join([*lines, f"{stopped}{reason(str(exc))}."]) + "\n")
+        return 2
+    except GatewayError as error:
+        stdout.write("\n".join([*lines, f"{stopped}{error.safe_message} ({error.code.value})"]) + "\n")
+        return 2
+    if record is None:
+        stdout.write(
+            "\n".join([*lines, f"{stopped}Для user_id {account_id} нет сохранённого входа, выполните login."]) + "\n"
+        )
+        return 2
+    explicit = any(name.upper() == "KWORK_EXPECTED_USER_ID" and value.strip() for name, value in os.environ.items())
+    source = "из KWORK_EXPECTED_USER_ID" if explicit else "единственный сохранённый вход"
+    lines += [
+        f"Аккаунт: {_terminal_safe(record.username)} (user_id {account_id}), {source}",
+        f"Сайт: kwork.{config.site}",
+        "Запись: включена" if config.enable_writes else "Запись: выключена (включает KWORK_ENABLE_WRITES=true)",
+        "Прокси: задан" if record.proxy_url else "Прокси: нет",
+        f"Хранилище: {_terminal_safe(str(config.state_dir))}",
+    ]
+    ledger = config.state_dir / "coordination.sqlite3"
+    if not ledger.is_file():
+        lines.append("Несверенные отправки: нет")
+    else:
+        try:
+            unresolved = await CoordinationStore(config).list_unresolved_writes(f"account-{account_id}")
+        except GatewayError as error:
+            lines.append(f"Несверенные отправки: журнал не открылся ({error.code.value})")
+        else:
+            lines.append(
+                f"Несверенные отправки: {len(unresolved)}, подробности: kwork-mcp pending-writes"
+                if unresolved
+                else "Несверенные отправки: нет"
+            )
+    lines.append("Токен не проверялся: status не обращается к Kwork.")
+    stdout.write("\n".join(lines) + "\n")
+    return 0
 
 
 async def run_bootstrap_cli(
@@ -667,12 +825,16 @@ async def run_bootstrap_cli(
         return 0
     if args and args[0] in {"pending-writes", "resolve-write"}:
         return await _run_write_admin(args, stdin=stdin, stdout=stdout, stderr=stderr)
+    if args and args[0] == "logout":
+        return await _run_logout(args[1:], stdin=stdin, stdout=stdout, stderr=stderr)
+    if args and args[0] == "status":
+        return await _run_status(args[1:], stdout=stdout, stderr=stderr)
     if args == ["login"]:
         args = []
     if args:
         # Never echo argv: it may hold a credential pasted by mistake.
         stderr.write(
-            "Ошибка: неизвестная команда. Доступны login, pending-writes и resolve-write; "
+            "Ошибка: неизвестная команда. Доступны login, status, logout, pending-writes и resolve-write; "
             "логин и пароль через аргументы не принимаются. Справка: kwork-mcp --help.\n"
         )
         return 2
