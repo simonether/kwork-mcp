@@ -33,7 +33,7 @@
         },
         {
           "name": "KWORK_WRITES",
-          "description": "Sending to Kwork: confirm asks the user before each send (client dialog or chat), auto lets the agent send, off is read-only",
+          "description": "Sending to Kwork: confirm sends only after the user's yes in chat, auto lets the agent send, off is read-only",
           "isRequired": false,
           "isSecret": false,
           "default": "confirm",
