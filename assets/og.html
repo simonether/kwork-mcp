@@ -2,53 +2,31 @@
 <!--
   Source of site/og.png (1200x630). Render from the repository root with headless Chrome:
     chrome --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630
-           --allow-file-access-from-files --virtual-time-budget=3000
+           --allow-file-access-from-files --timeout=3000
            --screenshot=og-raw.png file://$PWD/assets/og.html
-    magick og-raw.png -strip -colors 256 -dither None PNG8:site/og.png
+    magick og-raw.png -strip -dither FloydSteinberg -colors 256 PNG8:site/og.png
 -->
 <html lang="ru"><head><meta charset="utf-8">
 <style>
 @font-face{font-family:"Geologica";font-weight:100 900;src:url("../site/fonts/geologica-cyrillic.woff2") format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;}
 @font-face{font-family:"Geologica";font-weight:100 900;src:url("../site/fonts/geologica-latin.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212;}
-@font-face{font-family:"Geologica";font-weight:100 900;src:url("../site/fonts/geologica-ruble.woff2") format("woff2");unicode-range:U+20BD;}
-@font-face{font-family:"JetBrains Mono";font-weight:400 800;src:url("../site/fonts/jbmono-latin.woff2") format("woff2");unicode-range:U+0000-00FF,U+2000-206F;}
-@font-face{font-family:"JetBrains Mono";font-weight:400 800;src:url("../site/fonts/jbmono-cyrillic.woff2") format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;}
 *{box-sizing:border-box;margin:0}
 html,body{width:1200px;height:630px;overflow:hidden}
-body{position:relative;background:#0e1b22;color:#eaf2f0;font-family:"Geologica",sans-serif}
-.glow{position:absolute;inset:0;background:radial-gradient(60% 90% at 88% 40%,rgba(79,209,160,.16),transparent 70%)}
-.left{position:absolute;left:72px;top:64px;width:600px;height:502px;display:flex;flex-direction:column}
-.brand{display:flex;align-items:center;gap:16px;font-size:30px;font-weight:650;letter-spacing:-.02em}
-.brand svg{width:52px;height:52px}
-h1{margin-top:auto;font-size:76px;line-height:1.02;font-weight:700;letter-spacing:-.04em}
-h1 span{display:block;font-weight:300;color:#b9c9c8;margin-top:10px;font-size:50px;letter-spacing:-.03em;line-height:1.1}
-.clients{margin-top:34px;font-size:23px;color:#8ea3a6;font-weight:400}
-.slip{position:absolute;right:56px;top:96px;width:452px;background:#f4f7f1;color:#12222b;border-radius:8px 8px 0 0;padding:28px 30px 30px;box-shadow:0 40px 80px -20px rgba(0,0,0,.6)}
-.slip:after{content:"";position:absolute;left:0;right:0;top:100%;height:14px;background:linear-gradient(135deg,#f4f7f1 7px,transparent 0) 0 0/19px 14px repeat-x,linear-gradient(225deg,#f4f7f1 7px,transparent 0) 0 0/19px 14px repeat-x}
-.head{white-space:nowrap;display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:1.5px dashed rgba(18,34,43,.2);font-weight:650;font-size:22px}
-.chip{display:inline-flex;align-items:center;gap:8px;background:#f2b134;color:#2b1c00;border-radius:99px;padding:5px 14px 5px 12px;font-size:18px;font-weight:600}
-.chip:before{content:"";width:11px;height:11px;border-radius:50%;background:currentColor}
-.row{display:flex;justify-content:space-between;padding:15px 0;border-bottom:1px solid rgba(18,34,43,.14);font-size:23px}
-.row:last-of-type{border-bottom:0}
-.row dt{color:#52646c}.row dd{font-weight:550}
-.note{margin-top:8px;background:rgba(242,177,52,.24);color:#5a3a00;border-radius:10px;padding:14px 16px;font-size:20px;line-height:1.4}
-.btn{white-space:nowrap;margin-top:20px;background:#0b6e4f;color:#fff;border-radius:12px;padding:0 24px;height:60px;display:flex;align-items:center;font-size:23px;font-weight:600}
-.dot{position:absolute;right:64px;bottom:44px;font:500 20px "JetBrains Mono",monospace;color:#8ea3a6}
+body{position:relative;background:#f5f6f8;color:#1d212b;font-family:"Geologica",sans-serif}
+.left{position:absolute;left:72px;top:64px;width:580px;height:502px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:14px;font-size:30px;font-weight:650;letter-spacing:-.02em}
+.brand svg{width:48px;height:48px}
+h1{margin-top:auto;font-size:84px;line-height:.98;font-weight:700;letter-spacing:-.045em}
+.sub{margin-top:26px;font-size:33px;line-height:1.2;font-weight:450;letter-spacing:-.025em}
+.clients{margin-top:30px;font-size:23px;color:#5c6271}
+.art{position:absolute;right:44px;top:50px;width:520px;filter:drop-shadow(0 22px 26px rgba(29,33,43,.18)) drop-shadow(0 2px 3px rgba(29,33,43,.12))}
+.art img{display:block;width:100%}
 </style></head><body>
-<div class="glow"></div>
 <div class="left">
-  <div class="brand"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#eaf2f0"/><path d="M20 14v36M44 18L24 34l20 14" fill="none" stroke="#12222b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="46" cy="16" r="6" fill="#f2b134"/></svg>kwork-mcp</div>
-  <h1>MCP-сервер для Kwork<span>агент готовит, отправляете вы</span></h1>
-  <div class="clients">Claude Code, Claude Desktop, Codex, Cursor</div>
+  <div class="brand"><svg viewBox="0 0 64 64"><path fill="#1d212b" stroke="#1d212b" stroke-width="3.2" stroke-linejoin="round" d="M11.60 10.60 L20.00 10.60 L20.00 37.06 L33.63 23.43 L39.57 29.37 L35.32 33.62 L51.50 53.40 L40.65 53.40 L29.35 39.59 L20.00 48.94 L20.00 53.40 L11.60 53.40Z"/><path fill="#4a3fa0" d="M48 6c1.1 6.2 3.8 8.9 10 10-6.2 1.1-8.9 3.8-10 10-1.1-6.2-3.8-8.9-10-10 6.2-1.1 8.9-3.8 10-10z"/></svg>kwork-mcp</div>
+  <h1>MCP-сервер<br>для Kwork</h1>
+  <p class="sub">Агент готовит отклики и ответы.<br>Отправляете вы.</p>
+  <p class="clients">Claude Code, Claude Desktop, Codex, Cursor</p>
 </div>
-<div class="slip">
-  <div class="head"><span>Черновик отклика</span><span class="chip">Подготовлено</span></div>
-  <dl style="margin-top:6px">
-    <div class="row"><dt>Проект</dt><dd>3257238</dd></div>
-    <div class="row"><dt>Цена</dt><dd>15 000 ₽</dd></div>
-    <div class="row"><dt>Срок</dt><dd>5 дней</dd></div>
-  </dl>
-  <div class="note">На Kwork пока ничего не отправлено.</div>
-  <div class="btn">Подтвердить и отправить</div>
-</div>
+<div class="art"><img src="../site/img/hero-1200.webp" alt=""></div>
 </body></html>

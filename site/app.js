@@ -2,16 +2,9 @@
   "use strict";
 
   var root = document.documentElement;
-  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function $all(selector, scope) {
     return Array.prototype.slice.call((scope || document).querySelectorAll(selector));
-  }
-
-  function wait(ms) {
-    return new Promise(function (resolve) {
-      setTimeout(resolve, ms);
-    });
   }
 
   /* ---------- Theme toggle ---------- */
@@ -129,114 +122,5 @@
       });
       select(0, false);
     });
-  })();
-
-  /* ---------- Demo: one typed prompt, then a prepared write the visitor can confirm ---------- */
-  (function demo() {
-    var demoNode = document.querySelector("[data-demo]");
-    if (!demoNode) return;
-
-    var steps = $all("[data-step]", demoNode);
-    var slip = demoNode.querySelector("[data-slip]");
-    var chip = demoNode.querySelector("[data-chip]");
-    var note = demoNode.querySelector("[data-note]");
-    var promptLine = demoNode.querySelector("[data-type]");
-
-    var texts = {
-      pending: {
-        chip: "Подготовлено",
-        note: "На Kwork пока ничего не отправлено. Запрос уйдёт только после вашего подтверждения."
-      },
-      done: {
-        chip: "Отправлено",
-        note: "Вы подтвердили, сервер один раз отправил отклик на Kwork. Повторно он его не отправит."
-      },
-      cancelled: {
-        chip: "Отменено",
-        note: "Запись не подтверждена, на Kwork ничего не ушло."
-      }
-    };
-
-    function setState(state) {
-      slip.setAttribute("data-state", state);
-      chip.textContent = texts[state].chip;
-      note.textContent = texts[state].note;
-    }
-
-    var confirmButton = demoNode.querySelector("[data-confirm]");
-    var cancelButton = demoNode.querySelector("[data-cancel]");
-    var replayButton = demoNode.querySelector("[data-replay]");
-    confirmButton.addEventListener("click", function () {
-      setState("done");
-      replayButton.focus();
-    });
-    cancelButton.addEventListener("click", function () {
-      setState("cancelled");
-      replayButton.focus();
-    });
-    replayButton.addEventListener("click", function () {
-      setState("pending");
-      confirmButton.focus();
-    });
-
-    function showAll() {
-      steps.forEach(function (step) {
-        step.classList.add("on");
-      });
-    }
-
-    // Typed text: the real string stays in the DOM for assistive tech,
-    // a visual copy is typed on top of it.
-    var fullText = promptLine.textContent;
-    var visual = document.createElement("span");
-    visual.className = "typed";
-    visual.setAttribute("aria-hidden", "true");
-    promptLine.classList.add("sr-only");
-    promptLine.parentNode.insertBefore(visual, promptLine);
-
-    if (reduceMotion) {
-      visual.textContent = fullText;
-      showAll();
-      return;
-    }
-
-    async function play() {
-      steps[0].classList.add("on");
-      visual.classList.add("caret");
-      await wait(350);
-      for (var i = 1; i <= fullText.length; i++) {
-        visual.textContent = fullText.slice(0, i);
-        await wait(fullText.charAt(i - 1) === " " ? 55 : 24);
-      }
-      visual.classList.remove("caret");
-      for (var s = 1; s < steps.length; s++) {
-        await wait(s === steps.length - 1 ? 600 : 380);
-        steps[s].classList.add("on");
-      }
-    }
-
-    function start() {
-      var started = false;
-      function once() {
-        if (started) return;
-        started = true;
-        play();
-      }
-      if ("IntersectionObserver" in window) {
-        var observer = new IntersectionObserver(
-          function (entries) {
-            if (entries.some(function (entry) { return entry.isIntersecting; })) {
-              observer.disconnect();
-              once();
-            }
-          },
-          { threshold: 0.35 }
-        );
-        observer.observe(demoNode);
-      } else {
-        once();
-      }
-    }
-    start();
   })();
 })();

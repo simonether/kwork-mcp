@@ -1,0 +1,37 @@
+<!doctype html>
+<!--
+  Source of assets/banner-light.png and assets/banner-dark.png (1600x480, shown in README.md).
+  Render from the repository root with headless Chrome, once per theme (#light, #dark):
+    chrome --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1600,480
+           --allow-file-access-from-files --timeout=3000
+           --screenshot=banner-raw.png "file://$PWD/assets/banner.html#dark"
+    magick banner-raw.png -strip -dither FloydSteinberg -colors 256 PNG8:assets/banner-dark.png
+-->
+<html lang="ru"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Geologica";font-weight:100 900;src:url("../site/fonts/geologica-cyrillic.woff2") format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;}
+@font-face{font-family:"Geologica";font-weight:100 900;src:url("../site/fonts/geologica-latin.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212;}
+*{box-sizing:border-box;margin:0}
+html,body{width:1600px;height:480px;overflow:hidden}
+body{--paper:#f5f6f8;--ink:#1d212b;--dim:#5c6271;--spark:#4a3fa0;--shadow:rgba(29,33,43,.18);position:relative;background:var(--paper);color:var(--ink);font-family:"Geologica",sans-serif}
+body.dark{--paper:#14162c;--ink:#ecedf5;--dim:#9599b4;--spark:#a79df7;--shadow:rgba(4,5,16,.55)}
+.left{position:absolute;left:96px;top:72px;bottom:72px;width:1000px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:16px;font-size:34px;font-weight:650;letter-spacing:-.02em}
+.brand svg{width:54px;height:54px}
+.k{fill:var(--ink);stroke:var(--ink)}
+.s{fill:var(--spark)}
+h1{margin-top:auto;font-size:84px;white-space:nowrap;line-height:1;font-weight:700;letter-spacing:-.045em}
+.sub{margin-top:22px;font-size:38px;line-height:1.2;font-weight:450;letter-spacing:-.025em;color:var(--dim)}
+.art{position:absolute;right:72px;top:30px;width:430px;filter:drop-shadow(0 22px 26px var(--shadow)) drop-shadow(0 2px 3px var(--shadow))}
+.art img{display:block;width:100%}
+</style>
+<script>if (location.hash === "#dark") document.documentElement.className = "dark";</script>
+</head><body>
+<script>document.body.className = document.documentElement.className;</script>
+<div class="left">
+  <div class="brand"><svg viewBox="0 0 64 64"><path class="k" stroke-width="3.2" stroke-linejoin="round" d="M11.60 10.60 L20.00 10.60 L20.00 37.06 L33.63 23.43 L39.57 29.37 L35.32 33.62 L51.50 53.40 L40.65 53.40 L29.35 39.59 L20.00 48.94 L20.00 53.40 L11.60 53.40Z"/><path class="s" d="M48 6c1.1 6.2 3.8 8.9 10 10-6.2 1.1-8.9 3.8-10 10-1.1-6.2-3.8-8.9-10-10 6.2-1.1 8.9-3.8 10-10z"/></svg>kwork-mcp</div>
+  <h1>MCP-сервер для Kwork</h1>
+  <p class="sub">Агент готовит отклики и ответы. Отправляете вы.</p>
+</div>
+<div class="art"><img src="../site/img/hero-1200.webp" alt=""></div>
+</body></html>
