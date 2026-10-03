@@ -53,8 +53,11 @@ site/               GitHub Pages landing page (Russian), deployed by .github/wor
   `KWORK_WRITES`, limits, `KWORK_STATE_DIR`, optional `KWORK_EXPECTED_USER_ID`). Login,
   password, token, phone and proxy go only through `kwork-mcp login` into the account store.
 - **Account selection.** Without `KWORK_EXPECTED_USER_ID` the server serves the single account
-  that login stored a token for (`load_server_config`); none or several stop startup with exit 2.
-  The CLI never echoes argv.
+  that login stored a token for (`load_server_config`). With none or several it still starts
+  without a session: every tool answers `auth_required` or `account_binding_required`
+  (`AccountSelectionError.code`), so the agent can tell the user to run login; directory
+  inspections (Glama, LobeHub) need the started server too. An unreadable token store stops
+  startup with exit 2. The CLI never echoes argv.
 - **Writes mode.** `KWORK_WRITES=confirm|auto|off` (default confirm). confirm: the agent gets
   the user's yes in chat (`prepare_write.confirmation=chat`, mode-specific server instructions);
   the server cannot verify it. auto: the agent commits on its own. off: prepare/commit are not

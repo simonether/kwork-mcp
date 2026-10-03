@@ -53,7 +53,9 @@ flowchart LR
 Production server startup принимает только account-scoped store и stable numeric
 ID аккаунта: явный `KWORK_EXPECTED_USER_ID` или, если он не задан, единственный
 аккаунт, для которого `kwork-mcp login` сохранил token (`tokens/account-<id>.json`).
-Несколько сохранённых аккаунтов без явного ID и ни одного — отказ запуска с exit `2`. Record проверяется локально на scope/user ID до network, а
+Если сохранённых аккаунтов несколько без явного ID или нет ни одного, server запускается без
+session, и каждый tool отвечает `account_binding_required` или `auth_required`;
+нечитаемый каталог `tokens` — отказ запуска с exit `2`. Record проверяется локально на scope/user ID до network, а
 token подтверждается через `get_me`. Rejected token запоминается по hash на срок
 session и не проверяется циклически; другой token, записанный bootstrap/peer
 процессом, может быть принят после своей identity check. Username в record —

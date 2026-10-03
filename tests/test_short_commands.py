@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastmcp import Client
 from kwork.schema.actor import Actor
 
 import kwork_mcp
@@ -22,6 +23,7 @@ from kwork_mcp.config import (
 )
 from kwork_mcp.coordination import CoordinationStore
 from kwork_mcp.security import SecureTokenStore, TokenRecord
+from kwork_mcp.server import create_server
 from kwork_mcp.version import __version__
 
 
@@ -151,24 +153,99 @@ def test_main_starts_the_server_for_the_bound_account(
     assert configs[0].expected_user_id == 42
 
 
-def test_main_explains_an_ambiguous_account_without_starting(
+@pytest.mark.parametrize(
+    ("accounts", "explained"),
+    [
+        ((), f"аккаунт Kwork не подключён: выполните в терминале «uvx kwork-mcp@{__version__} login»"),
+        ((42, 77), "несколько аккаунтов Kwork (42, 77)"),
+    ],
+)
+def test_main_starts_without_a_selected_account_and_explains_why(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    accounts: tuple[int, ...],
+    explained: str,
+) -> None:
+    _bind(state_dir, *accounts)
+    configs: list[KworkConfig | None] = []
+
+    def fake_create_server(*, config: KworkConfig | None) -> SimpleNamespace:
+        configs.append(config)
+        return SimpleNamespace(run=lambda **_kwargs: None)
+
+    monkeypatch.setattr("kwork_mcp.server.create_server", fake_create_server)
+
+    kwork_mcp.main([])
+
+    assert configs == [None]
+    captured = capsys.readouterr()
+    assert explained in captured.err
+    assert captured.out == ""
+
+
+def test_main_stops_when_the_token_store_cannot_be_read(
     state_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _bind(state_dir, 42, 77)
+    def deny(_self: Path) -> Any:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "iterdir", deny)
     monkeypatch.setattr(
         "kwork_mcp.server.create_server",
-        lambda **_kwargs: pytest.fail("server must not start for an ambiguous account"),
+        lambda **_kwargs: pytest.fail("server must not start over an unreadable token store"),
     )
 
     with pytest.raises(SystemExit) as exited:
         kwork_mcp.main([])
 
     assert exited.value.code == 2
-    captured = capsys.readouterr()
-    assert "несколько аккаунтов Kwork (42, 77)" in captured.err
-    assert captured.out == ""
+    assert "не удалось прочитать хранилище токенов (PermissionError)" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_server_does_not_start_over_an_unreadable_token_store(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def deny(_self: Path) -> Any:
+        raise PermissionError("denied")
+
+    server = create_server()
+    monkeypatch.setattr(Path, "iterdir", deny)
+
+    with pytest.raises(RuntimeError, match="PermissionError"):
+        async with Client(server):
+            pytest.fail("the client must not connect")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("accounts", "code"),
+    [((), "auth_required"), ((42, 77), "account_binding_required")],
+)
+async def test_server_without_a_selected_account_lists_tools_and_answers_with_the_reason(
+    state_dir: Path,
+    accounts: tuple[int, ...],
+    code: str,
+) -> None:
+    _bind(state_dir, *accounts)
+
+    async with Client(create_server()) as client:
+        names = {tool.name for tool in await client.list_tools()}
+        status = await client.call_tool("account_status", {}, raise_on_error=False)
+        prepared = await client.call_tool(
+            "prepare_write",
+            {"request": {"action": "mark_dialog_read", "user_id": 5}, "idempotency_key": "mark-read-5"},
+            raise_on_error=False,
+        )
+
+    assert len(names) == 22
+    for result in (status, prepared):
+        assert result.structured_content["knowledge_state"] == "unknown_error"
+        assert result.structured_content["error"]["code"] == code
 
 
 # --- terminal commands on the main entry point
@@ -459,29 +536,32 @@ async def test_status_names_an_explicit_account_and_reads_the_ledger(
 
 
 @pytest.mark.asyncio
-async def test_status_explains_why_the_server_would_not_start(
+async def test_status_explains_why_the_server_would_not_work(
     state_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    idle = "Сервер запустится без аккаунта, инструменты ответят агенту ошибкой. "
+
     code, output = await _status()
     assert code == 2
-    assert "не запустится. Аккаунт Kwork не подключён" in output
+    assert idle + "Аккаунт Kwork не подключён" in output
 
     _store_login(state_dir, 42)
     _store_login(state_dir, 77)
     code, output = await _status()
     assert code == 2
+    assert idle + "Подключено несколько аккаунтов Kwork (42, 77)" in output
     assert "kwork-mcp logout <user_id>" in output
 
     monkeypatch.setenv("KWORK_EXPECTED_USER_ID", "99")
     code, output = await _status()
     assert code == 2
-    assert "Для user_id 99 нет сохранённого входа" in output
+    assert idle + "Для user_id 99 нет сохранённого входа" in output
 
     monkeypatch.setenv("KWORK_PASSWORD", "status-secret-sentinel")
     code, output = await _status()
     assert code == 2
-    assert "В окружении есть логин" in output
+    assert "не запустится. В окружении есть логин" in output
     assert "status-secret-sentinel" not in output
 
 

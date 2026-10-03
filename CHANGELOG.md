@@ -5,6 +5,22 @@
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-10-03
+
+### Changed
+
+- Сервер запускается, даже если аккаунт Kwork не выбран: входа ещё нет или вы
+  входили в несколько аккаунтов и не указали `KWORK_EXPECTED_USER_ID`. Раньше он
+  сразу завершался, и клиент показывал только упавший сервер. Теперь каждый
+  инструмент возвращает агенту `auth_required` с подсказкой выполнить
+  `uvx kwork-mcp@1.5.2 login` или `account_binding_required` с просьбой выбрать
+  аккаунт, а к Kwork сервер не обращается. Каталоги MCP-серверов (Glama, LobeHub)
+  теперь могут проверить запуск и список инструментов без аккаунта. Если каталог
+  токенов не читается, сервер по-прежнему не запускается.
+- `kwork-mcp status` различает два случая: «сервер не запустится» (секреты в
+  окружении, ошибка конфигурации) и «сервер запустится без аккаунта». Раньше
+  второй случай тоже назывался «не запустится».
+
 ### Fixed
 
 - Сборка из исходников работает с uv 0.12: `tool.uv.required-version` больше не
@@ -292,7 +308,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.2
 [1.5.1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.1
 [1.5.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.0
 [1.4.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.4.0
