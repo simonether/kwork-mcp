@@ -734,7 +734,7 @@ def test_server_secret_environment_detection_is_case_insensitive() -> None:
         secret_server_environment_present(
             {
                 "KWORK_EXPECTED_USER_ID": "42",
-                "KWORK_ENABLE_WRITES": "false",
+                "KWORK_WRITES": "off",
             }
         )
         is False
@@ -760,7 +760,7 @@ async def test_bootstrap_cli_uses_tty_only_and_ignores_inherited_secrets(
     monkeypatch.setenv("KWORK_LOGIN", "inherited-login-sentinel")
     monkeypatch.setenv("KWORK_PASSWORD", "inherited-password-sentinel")
     monkeypatch.setenv("KWORK_PROXY_URL", "https://inherited-proxy-sentinel.example")
-    monkeypatch.setenv("KWORK_ENABLE_WRITES", "true")
+    monkeypatch.setenv("KWORK_WRITES", "auto")
 
     stdin = TTYBuffer()
     stdout = io.StringIO()
@@ -800,13 +800,13 @@ async def test_bootstrap_cli_uses_tty_only_and_ignores_inherited_secrets(
     assert received[0].password_value == "prompted-password"
     assert received[0].token_value == ""
     assert received[0].proxy_value is None
-    assert received[0].enable_writes is False
+    assert received[0].writes == "off"
     output = stdout.getvalue()
     assert output.splitlines()[0] == "Аккаунт verified-user (user_id 42) подключён."
     server = f"-- uvx kwork-mcp@{__version__}"
     assert f"claude mcp add kwork --scope user -e KWORK_STATE_DIR={state_dir} {server}" in output
     assert f"codex mcp add kwork --env KWORK_STATE_DIR={state_dir} {server}" in output
-    assert "KWORK_ENABLE_WRITES" not in output
+    assert "-e KWORK_WRITES" not in output
     combined_output = stdout.getvalue() + stderr.getvalue()
     for secret in (
         "inherited-token-sentinel",
@@ -959,7 +959,7 @@ async def test_bootstrap_cli_rejects_non_tty_and_unknown_argv_without_reflection
     [
         (["--help"], "kwork-mcp-bootstrap"),
         (["-h"], "kwork-mcp-bootstrap"),
-        (["--version"], "1.4.0"),
+        (["--version"], "1.5.0"),
     ],
 )
 async def test_bootstrap_help_and_version_need_no_tty_or_configuration(

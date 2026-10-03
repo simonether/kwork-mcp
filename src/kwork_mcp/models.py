@@ -52,12 +52,16 @@ class ErrorCode(StrEnum):
     INVALID_CONFIRMATION = "invalid_confirmation"
     WRITE_IN_PROGRESS = "write_in_progress"
     WRITE_DISABLED = "write_disabled"
+    WRITE_DECLINED = "write_declined"
     NOT_FOUND = "not_found"
     VALIDATION = "validation"
     SITE_UNSUPPORTED = "site_unsupported"
     SITE_MISMATCH = "site_mismatch"
     UPSTREAM_UNAVAILABLE = "upstream_unavailable"
     INTERNAL = "internal"
+
+
+WriteConfirmation = Literal["client", "chat", "none", "off"]
 
 
 class ErrorInfo(BaseModel):
@@ -118,7 +122,14 @@ class AccountData(BaseModel):
     expected_user_id: int | None
     expected_username: str | None
     binding_state: Literal["bound", "unbound_reads_only"]
-    writes_enabled: bool
+    writes: Literal["confirm", "auto", "off"] = Field(
+        description="KWORK_WRITES: confirm asks the user before each send, auto lets the agent send, off is read-only.",
+    )
+    write_confirmation: WriteConfirmation | None = Field(
+        default=None,
+        description="How this client confirms a send: client (a dialog in the MCP client), chat (the agent asks "
+        "in the conversation), none (auto), off (no sends).",
+    )
     write_ready: bool
     unresolved_write_ids: list[str] = Field(
         default_factory=list,
@@ -399,6 +410,12 @@ class WriteStatusData(BaseModel):
     can_commit: bool
     reconciliation_required: bool
     confirmation_token: str | None = None
+    confirmation: WriteConfirmation | None = Field(
+        default=None,
+        description="How commit_write will be confirmed: client means the server shows the user a dialog itself, "
+        "so do not ask again in chat; chat means show the exact payload and commit only after the user's explicit "
+        "yes; none means KWORK_WRITES=auto.",
+    )
     result: dict[str, JsonValue] | None = None
     terminal_error: ErrorInfo | None = None
 

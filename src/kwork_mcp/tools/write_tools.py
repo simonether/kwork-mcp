@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastmcp import Context, FastMCP
 from fastmcp.tools import ToolResult
+from loguru import logger
+from mcp.types import ElicitRequest, ElicitRequestFormParams, ElicitResult, InputRequiredResult
+from mcp_types.version import MODERN_PROTOCOL_VERSIONS
 from pydantic import StringConstraints
 
 from kwork_mcp.errors import GatewayError
+from kwork_mcp.gateway.writes import confirmation_message
 from kwork_mcp.models import (
     ErrorCode,
     IdempotencyKey,
@@ -25,13 +29,70 @@ from kwork_mcp.tools.common import (
     failure,
     gateway_from_context,
     unexpected_failure,
+    write_confirmation,
     write_result,
 )
 
 WriteOutcome = ResultEnvelope[WriteStatusData]
 
+_CONFIRM_KEY = "kwork_send"
+_CONFIRM_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"send": {"type": "boolean", "title": "Отправить", "default": True}},
+    "required": ["send"],
+}
 
-def register(mcp: FastMCP) -> None:
+
+def _accepted(answer: object) -> bool:
+    return (
+        isinstance(answer, ElicitResult)
+        and answer.action == "accept"
+        and isinstance(answer.content, dict)
+        and answer.content.get("send") is True
+    )
+
+
+async def _ask_user(ctx: Context, message: str, state: str) -> bool | InputRequiredResult | None:
+    """Ask the person in the client to confirm; None means the client failed to ask.
+
+    On 2026-07-28 connections the server cannot push a request mid-call, so the
+    tool returns an input request and the client calls again with the answer.
+    The sealed request_state binds that answer to this write and payload hash.
+    """
+
+    if ctx.session.protocol_version in MODERN_PROTOCOL_VERSIONS:
+        responses = ctx.input_responses
+        if responses is None or ctx.request_state != state or _CONFIRM_KEY not in responses:
+            return InputRequiredResult(
+                input_requests={
+                    _CONFIRM_KEY: ElicitRequest(
+                        params=ElicitRequestFormParams(message=message, requested_schema=_CONFIRM_SCHEMA)
+                    )
+                },
+                request_state=state,
+            )
+        return _accepted(responses[_CONFIRM_KEY])
+    try:
+        answer = await ctx.session.elicit(
+            message=message,
+            requested_schema=_CONFIRM_SCHEMA,
+            related_request_id=ctx.request_id,
+        )
+    except Exception as exc:
+        logger.warning("write_confirmation_unavailable error={}", type(exc).__name__)
+        return None
+    return _accepted(answer)
+
+
+def register(mcp: FastMCP, *, writes: str | None = None) -> None:
+    """Register the write protocol; KWORK_WRITES=off leaves only status and reconcile."""
+
+    if writes != "off":
+        _register_sending(mcp)
+    _register_status(mcp)
+
+
+def _register_sending(mcp: FastMCP) -> None:
     @mcp.tool(
         title="Подготовить безопасную запись Kwork",
         annotations=ANNO_PREPARE,
@@ -54,11 +115,13 @@ def register(mcp: FastMCP) -> None:
         """
         correlation = correlation_id()
         try:
-            status = await gateway_from_context(ctx).prepare_write(
+            gateway = gateway_from_context(ctx)
+            status = await gateway.prepare_write(
                 request,
                 idempotency_key,
                 correlation_id=correlation,
             )
+            status = status.model_copy(update={"confirmation": write_confirmation(ctx, gateway.config.writes)})
             return write_result(WriteOutcome, status=status, correlation=correlation)
         except GatewayError as error:
             return failure(WriteOutcome, error=error, correlation=correlation)
@@ -94,18 +157,41 @@ def register(mcp: FastMCP) -> None:
             StringConstraints(strip_whitespace=True, min_length=32, max_length=256),
         ],
         ctx: Context,
-    ) -> ToolResult:
+    ) -> ToolResult | InputRequiredResult:
         """Выполнить ровно подготовленный payload в режиме shared one-writer.
 
         Commit повторяем только с теми же write_id/payload_hash/token: shared ledger
         вернёт сохранённый результат и не вызовет Kwork повторно. Remote writes никогда
         автоматически не retry. Timeout, proxy loss, 5xx или неподтверждённый offer_id
         дают submission_unknown/isError; после этого commit повторять нельзя — вызовите
-        reconcile_write.
+        reconcile_write. При KWORK_WRITES=confirm клиент с окном подтверждения
+        сначала покажет пользователю точный текст; если пользователь откажется,
+        запись завершится write_declined и на Kwork ничего не уйдёт.
         """
         correlation = correlation_id()
         try:
-            status = await gateway_from_context(ctx).commit_write(
+            gateway = gateway_from_context(ctx)
+            if write_confirmation(ctx, gateway.config.writes) == "client":
+                record = await gateway.pending_confirmation(
+                    write_id=write_id,
+                    payload_hash=payload_hash,
+                    confirmation_token=confirmation_token,
+                )
+                if record is not None:
+                    answer = await _ask_user(ctx, confirmation_message(record), f"{write_id}:{payload_hash}")
+                    if isinstance(answer, InputRequiredResult):
+                        return answer
+                    if answer is None:
+                        raise GatewayError(ErrorCode.WRITE_DECLINED, diagnostic="client_confirmation_failed")
+                    if not answer:
+                        declined = await gateway.decline_write(
+                            write_id=write_id,
+                            payload_hash=payload_hash,
+                            confirmation_token=confirmation_token,
+                            correlation_id=correlation,
+                        )
+                        return write_result(WriteOutcome, status=declined, correlation=correlation)
+            status = await gateway.commit_write(
                 write_id=write_id,
                 payload_hash=payload_hash,
                 confirmation_token=confirmation_token,
@@ -117,6 +203,8 @@ def register(mcp: FastMCP) -> None:
         except Exception as exc:
             return unexpected_failure(WriteOutcome, exception=exc, correlation=correlation)
 
+
+def _register_status(mcp: FastMCP) -> None:
     @mcp.tool(
         title="Получить состояние записи Kwork",
         annotations=ANNO_LOCAL_READ,

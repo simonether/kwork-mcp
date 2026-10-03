@@ -70,9 +70,9 @@ class ReadOperations(GatewayBase):
             expected_user_id=self.config.expected_user_id,
             expected_username=self.config.expected_username,
             binding_state=("bound" if self.config.expected_user_id is not None else "unbound_reads_only"),
-            writes_enabled=self.config.enable_writes,
+            writes=self.config.writes,
             write_ready=(
-                self.config.enable_writes
+                self.config.writes != "off"
                 and self.config.expected_user_id is not None
                 and actor.id == self.config.expected_user_id
             ),

@@ -616,8 +616,8 @@ class KworkSessionManager:
         return actor
 
     async def verify_write_identity(self) -> Actor:
-        if not self.config.enable_writes:
-            raise GatewayError(ErrorCode.WRITE_DISABLED, diagnostic="enable_writes=false")
+        if self.config.writes == "off":
+            raise GatewayError(ErrorCode.WRITE_DISABLED, diagnostic="writes=off")
         return await self.verify_account_identity()
 
     async def call_write_step(

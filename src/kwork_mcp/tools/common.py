@@ -18,6 +18,7 @@ from kwork_mcp.models import (
     KnowledgeState,
     ResultEnvelope,
     ResultMeta,
+    WriteConfirmation,
     WriteState,
     WriteStatusData,
 )
@@ -59,6 +60,21 @@ def gateway_from_context(ctx: Context) -> KworkGateway:
     if not isinstance(gateway, KworkGateway):
         raise RuntimeError("gateway lifespan context is unavailable")
     return gateway
+
+
+def write_confirmation(ctx: Context, writes: str) -> WriteConfirmation:
+    """How a send is confirmed for this client under KWORK_WRITES."""
+
+    if writes == "off":
+        return "off"
+    if writes == "auto":
+        return "none"
+    capabilities = ctx.session.client_capabilities
+    elicitation = capabilities.elicitation if capabilities is not None else None
+    # An empty elicitation capability predates the form/url split and means form.
+    if elicitation is not None and (elicitation.form is not None or elicitation.url is None):
+        return "client"
+    return "chat"
 
 
 def correlation_id() -> str:

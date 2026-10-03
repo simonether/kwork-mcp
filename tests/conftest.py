@@ -34,6 +34,9 @@ def config_factory(tmp_path: Path) -> Callable[..., KworkConfig]:
             "retry_backoff_max": 0.0,
             "reconciliation_min_age_seconds": 1.0,
         }
+        # KworkConfig ignores unknown settings, so a renamed one would pass silently.
+        unknown = set(overrides) - set(KworkConfig.model_fields)
+        assert not unknown, f"unknown KworkConfig fields: {sorted(unknown)}"
         values.update(overrides)
         return KworkConfig(**values)
 

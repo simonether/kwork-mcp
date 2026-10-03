@@ -341,7 +341,7 @@ async def test_remote_admission_failure_before_marker_preserves_confirmation(
     request_payload: dict[str, Any],
     error_code: ErrorCode,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = CoordinationStore(config)
     record, token = await _prepare_custom_record(
         store,
@@ -380,7 +380,7 @@ async def test_remote_admission_failure_before_marker_preserves_confirmation(
 async def test_write_adapter_cannot_report_success_without_crossing_remote_boundary(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = CoordinationStore(config)
     record, token = await _prepare_record(store, key="missing-remote-boundary")
     gateway = NoBoundaryGateway(config, store)
@@ -412,7 +412,7 @@ async def test_pre_boundary_adapter_failure_releases_confirmation_for_retry(
     config_factory: Callable[..., KworkConfig],
     failure: BaseException,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = CoordinationStore(config)
     record, token = await _prepare_record(
         store,
@@ -451,7 +451,7 @@ async def test_marker_commit_then_callback_failure_is_conservatively_unknown(
     config_factory: Callable[..., KworkConfig],
     failure: BaseException,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = MarkerCommitThenErrorStore(config, failure)
     record, token = await _prepare_record(
         store,
@@ -483,7 +483,7 @@ async def test_cancellation_before_remote_boundary_restores_prepared_and_retries
     config_factory: Callable[..., KworkConfig],
     stage: str,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = CoordinationStore(config)
     record, token = await _prepare_record(store, key=f"cancel-before-{stage}")
     gateway = CancellationGateway(config, store, stage=stage)
@@ -518,7 +518,7 @@ async def test_cancellation_before_remote_boundary_restores_prepared_and_retries
 async def test_cancellation_after_remote_call_starts_is_immediately_unknown_and_blocks_account(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = CoordinationStore(config)
     record, token = await _prepare_record(store, key="cancel-after-remote")
     gateway = CancellationGateway(config, store, stage="remote")
@@ -562,7 +562,7 @@ async def test_cancellation_after_remote_call_starts_is_immediately_unknown_and_
 async def test_cancellation_after_claim_transaction_waits_then_releases_claim(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = DelayedClaimStore(config)
     record, token = await _prepare_record(store, key="cancel-after-claim")
     gateway = CancellationGateway(config, store)
@@ -587,7 +587,7 @@ async def test_cancellation_after_claim_transaction_waits_then_releases_claim(
 async def test_repeated_cancellation_cannot_interrupt_claim_release(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = DelayedReleaseStore(config)
     record, token = await _prepare_record(store, key="cancel-release-twice")
     gateway = CancellationGateway(config, store, stage="identity")
@@ -615,7 +615,7 @@ async def test_cancellation_is_reraised_when_pre_remote_settlement_fails_and_sta
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = config_factory(
-        enable_writes=True,
+        writes="auto",
         expected_user_id=42,
         write_lease_seconds=10,
     )
@@ -651,7 +651,7 @@ async def test_cancellation_is_reraised_when_pre_remote_settlement_fails_and_sta
 async def test_cancellation_during_success_ledger_write_persists_success_before_reraising(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = DelayedFinishStore(config)
     record, token = await _prepare_record(store, key="cancel-success-ledger")
     gateway = CancellationGateway(config, store)
@@ -674,7 +674,7 @@ async def test_cancellation_during_success_ledger_write_persists_success_before_
 async def test_cancellation_after_durable_remote_marker_is_unknown_even_before_call_return(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = DelayedMarkerStore(config)
     record, token = await _prepare_record(store, key="cancel-marker")
     gateway = CancellationGateway(config, store)

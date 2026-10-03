@@ -98,7 +98,14 @@ Credential files защищены permissions, но не application-level encry
 
 ## Write safety
 
-Write разрешён только после свежей проверки ожидаемого account ID. Prepare выполняет
+Write разрешён только после свежей проверки ожидаемого account ID. В режиме
+`KWORK_WRITES=confirm` клиент с `elicitation` показывает пользователю окно с
+текстом из ledger перед remote boundary; согласие, полученное для другой записи,
+не принимается (ответ привязан к `write_id` и `payload_hash`), управляющие и bidi
+символы в окне показываются как escape-последовательности. Без `elicitation`
+подтверждение остаётся на агенте, а `KWORK_WRITES=auto` его отключает: тогда
+защиту от prompt injection во внешних текстах даёт только поведение агента.
+Prepare выполняет
 action-specific read preflight и сохраняет canonical exact payload. Commit требует
 совпадения `write_id`, SHA-256 `payload_hash` и confirmation token до TTL.
 

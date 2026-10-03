@@ -50,11 +50,16 @@ site/               GitHub Pages landing page (Russian), deployed by .github/wor
 ## Architecture
 
 - **Secretless steady state.** The server accepts only safe env (`KWORK_PERSIST_TOKEN=true`,
-  `KWORK_ENABLE_WRITES`, limits, `KWORK_STATE_DIR`, optional `KWORK_EXPECTED_USER_ID`). Login,
+  `KWORK_WRITES`, limits, `KWORK_STATE_DIR`, optional `KWORK_EXPECTED_USER_ID`). Login,
   password, token, phone and proxy go only through `kwork-mcp login` into the account store.
 - **Account selection.** Without `KWORK_EXPECTED_USER_ID` the server serves the single account
   that login stored a token for (`load_server_config`); none or several stop startup with exit 2.
   The CLI never echoes argv.
+- **Writes mode.** `KWORK_WRITES=confirm|auto|off` (default confirm). In confirm mode
+  `commit_write` asks the user through MCP elicitation when the client declares it
+  (`tools/write_tools.py`: imperative on handshake connections, `InputRequiredResult` on
+  2026-07-28); otherwise the agent confirms in chat. off does not register prepare/commit.
+  The removed `KWORK_ENABLE_WRITES` stops startup (`reject_removed_settings`).
 - **Tools** get the gateway via `gateway_from_context(ctx)` and return a `ResultEnvelope` through
   `success()` / `failure()` / `unexpected_failure()`; `knowledge_state` is `known_data`,
   `known_empty` or `unknown_error`.

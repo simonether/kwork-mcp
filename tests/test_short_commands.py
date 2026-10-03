@@ -107,12 +107,12 @@ def test_server_serves_the_single_bound_account_with_writes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _bind(state_dir, 42)
-    monkeypatch.setenv("KWORK_ENABLE_WRITES", "true")
+    monkeypatch.setenv("KWORK_WRITES", "auto")
 
     config = load_server_config()
 
     assert config.expected_user_id == 42
-    assert config.enable_writes is True
+    assert config.writes == "auto"
     assert config.bootstrap_scope == "account-42"
 
 
@@ -426,14 +426,14 @@ async def test_status_describes_the_account_the_server_would_serve(
 ) -> None:
     _store_login(state_dir, 42, proxy="http://proxy-user:proxy-pass@proxy.example:8080")
     monkeypatch.setenv("KWORK_SITE", "com")
-    monkeypatch.setenv("KWORK_ENABLE_WRITES", "true")
+    monkeypatch.setenv("KWORK_WRITES", "auto")
 
     code, output = await _status()
 
     assert code == 0
     assert "Аккаунт: found-user (user_id 42), единственный сохранённый вход" in output
     assert "Сайт: kwork.com" in output
-    assert "Запись: включена" in output
+    assert "Отправка: агент отправляет сам" in output
     assert "Прокси: задан" in output
     assert "Несверенные отправки: нет" in output
     for secret in ("stored-token-sentinel", "proxy-pass", "proxy.example"):
@@ -454,7 +454,7 @@ async def test_status_names_an_explicit_account_and_reads_the_ledger(
 
     assert code == 0
     assert "(user_id 77), из KWORK_EXPECTED_USER_ID" in output
-    assert "Запись: выключена" in output
+    assert "Отправка: с подтверждением каждой" in output
     assert "Несверенные отправки: нет" in output
 
 

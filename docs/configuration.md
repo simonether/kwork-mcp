@@ -11,7 +11,7 @@ Normal MCP читает только allowlisted safe policy/identity settings �
 |---|---:|---|
 | `KWORK_EXPECTED_USER_ID` | единственный привязанный | Какой аккаунт обслуживать; нужен, только если `login` привязал несколько |
 | `KWORK_EXPECTED_USERNAME` | пусто | Дополнительная проверка username; ведущий `@` нормализуется |
-| `KWORK_ENABLE_WRITES` | `false` | Явно включает safe write protocol |
+| `KWORK_WRITES` | `confirm` | Режим отправки: `confirm`, `auto` или `off` (см. «Режим отправки») |
 | `KWORK_PERSIST_TOKEN` | `true` | Обязательный account-bound steady-state store |
 | `KWORK_SITE` | `ru` | Сайт Kwork: `ru` — kwork.ru, `com` — kwork.com |
 
@@ -144,6 +144,34 @@ mode bits; при сомнении используйте отдельный loc
 лимит, обязаны указывать один state directory. Remote `Retry-After` не увеличивает
 sleep сверх `RETRY_BACKOFF_MAX`; shared circuit никогда не открывается более чем
 на 900 секунд одним сигналом.
+
+## Режим отправки
+
+`KWORK_WRITES` определяет, кто решает, уйдёт ли подготовленная запись на Kwork:
+
+- `confirm` (по умолчанию). Если клиент объявил возможность `elicitation` в форме
+  (Claude Code, Cursor, Codex), `commit_write` перед отправкой показывает
+  пользователю окно с текстом из сохранённой записи; агент не может ни подменить
+  этот текст, ни ответить за пользователя. На соединениях 2025-11-25 и раньше окно
+  открывается запросом `elicitation/create` посреди вызова, на 2026-07-28
+  `commit_write` возвращает `InputRequiredResult`, и клиент повторяет вызов с
+  ответом; запечатанный `request_state` привязывает ответ к `write_id` и
+  `payload_hash`. Отказ или закрытие окна переводит запись в `failed_known` с
+  `write_declined` без обращения к Kwork; сбой клиента при показе окна оставляет
+  запись `prepared`. Окно не показывается для записи, которую `commit` всё равно
+  не отправит (не `prepared`, истёк TTL, другая запись в `submission_unknown`), и
+  для `mark_dialog_read`. Клиент без `elicitation` (Claude Desktop) получает в
+  `prepare_write.confirmation` значение `chat` и указание запросить «да» в чате:
+  сервер не может проверить такое подтверждение.
+- `auto`. Агент вызывает `commit_write` сам, окна нет.
+- `off`. Только чтение: `prepare_write` и `commit_write` не регистрируются,
+  `get_write_status` и `reconcile_write` остаются.
+
+`account_status.writes` показывает режим, `account_status.write_confirmation`
+показывает, как подтверждается отправка в этом клиенте: `client`, `chat`, `none`
+или `off`. Переменная `KWORK_ENABLE_WRITES` удалена в 1.5.0: сервер с ней не
+запускается и подсказывает замену, чтобы прежнее `false` не превратилось молча в
+отправку с подтверждением.
 
 ## Write protocol
 
