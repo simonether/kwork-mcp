@@ -21,6 +21,7 @@ from kwork_mcp.config import (
     select_bound_account,
 )
 from kwork_mcp.coordination import CoordinationStore
+from kwork_mcp.security import SecureTokenStore, TokenRecord
 from kwork_mcp.version import __version__
 
 
@@ -309,3 +310,236 @@ def test_login_quotes_a_state_directory_with_spaces(
     monkeypatch.setenv("KWORK_STATE_DIR", str(spaced))
 
     assert f"-e 'KWORK_STATE_DIR={spaced}' --" in _instructions()
+
+
+# --- logout and status
+
+
+def _store_login(state_dir: Path, account_id: int, username: str = "found-user", proxy: str | None = None) -> None:
+    store = SecureTokenStore(state_dir)
+    scope = f"account-{account_id}"
+    lock = store.acquire_lock(scope)
+    try:
+        store.save_locked(
+            scope,
+            TokenRecord.create(user_id=account_id, username=username, token="stored-token-sentinel", proxy_url=proxy),
+        )
+    finally:
+        store.release_lock(lock)
+
+
+async def _logout(argv: list[str], answer: str = "да\n") -> tuple[int, str, str]:
+    code = await run_bootstrap_cli(
+        ["logout", *argv],
+        stdin=TTYBuffer(answer),
+        stdout=(stdout := io.StringIO()),
+        stderr=(stderr := TTYBuffer()),
+    )
+    return code, stdout.getvalue(), stderr.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_logout_forgets_the_single_stored_login_after_confirmation(state_dir: Path) -> None:
+    _store_login(state_dir, 42)
+
+    code, stdout, stderr = await _logout([])
+
+    assert code == 0
+    assert "found-user (user_id 42)" in stderr
+    assert "удалён с этого компьютера" in stdout
+    assert bound_account_ids(state_dir) == []
+    assert "stored-token-sentinel" not in stdout + stderr
+
+
+@pytest.mark.asyncio
+async def test_logout_keeps_the_login_when_not_confirmed(state_dir: Path) -> None:
+    _store_login(state_dir, 42)
+
+    code, stdout, stderr = await _logout([], answer="нет\n")
+
+    assert code == 1
+    assert "не удалён" in stderr
+    assert stdout == ""
+    assert bound_account_ids(state_dir) == [42]
+
+
+@pytest.mark.asyncio
+async def test_logout_picks_one_of_several_accounts_by_id(state_dir: Path) -> None:
+    _store_login(state_dir, 42)
+    _store_login(state_dir, 77, username="second-user")
+
+    refused, _stdout, stderr = await _logout([])
+    assert refused == 2
+    assert "42, 77" in stderr
+
+    code, stdout, _stderr = await _logout(["77"])
+    assert code == 0
+    assert "second-user (user_id 77)" in stdout
+    assert bound_account_ids(state_dir) == [42]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("argv", [["not-an-id"], ["0"], ["42", "77"], ["--token=logout-secret"]])
+async def test_logout_rejects_bad_arguments_without_echoing_them(state_dir: Path, argv: list[str]) -> None:
+    _store_login(state_dir, 42)
+
+    code, stdout, stderr = await _logout(argv)
+
+    assert code == 2
+    assert "Использование: kwork-mcp logout [user_id]" in stderr
+    assert "logout-secret" not in stdout + stderr
+    assert bound_account_ids(state_dir) == [42]
+
+
+@pytest.mark.asyncio
+async def test_logout_reports_a_missing_login(state_dir: Path) -> None:
+    code, _stdout, stderr = await _logout(["42"])
+
+    assert code == 1
+    assert "для user_id 42 нет" in stderr
+
+
+@pytest.mark.asyncio
+async def test_logout_requires_a_terminal(state_dir: Path) -> None:
+    _store_login(state_dir, 42)
+
+    code = await run_bootstrap_cli(
+        ["logout"], stdin=io.StringIO("да\n"), stdout=io.StringIO(), stderr=(stderr := io.StringIO())
+    )
+
+    assert code == 2
+    assert "TTY" in stderr.getvalue()
+    assert bound_account_ids(state_dir) == [42]
+
+
+async def _status() -> tuple[int, str]:
+    code = await run_bootstrap_cli(
+        ["status"], stdin=io.StringIO(), stdout=(stdout := io.StringIO()), stderr=io.StringIO()
+    )
+    return code, stdout.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_status_describes_the_account_the_server_would_serve(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _store_login(state_dir, 42, proxy="http://proxy-user:proxy-pass@proxy.example:8080")
+    monkeypatch.setenv("KWORK_SITE", "com")
+    monkeypatch.setenv("KWORK_ENABLE_WRITES", "true")
+
+    code, output = await _status()
+
+    assert code == 0
+    assert "Аккаунт: found-user (user_id 42), единственный сохранённый вход" in output
+    assert "Сайт: kwork.com" in output
+    assert "Запись: включена" in output
+    assert "Прокси: задан" in output
+    assert "Несверенные отправки: нет" in output
+    for secret in ("stored-token-sentinel", "proxy-pass", "proxy.example"):
+        assert secret not in output
+
+
+@pytest.mark.asyncio
+async def test_status_names_an_explicit_account_and_reads_the_ledger(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _store_login(state_dir, 42)
+    _store_login(state_dir, 77)
+    monkeypatch.setenv("KWORK_EXPECTED_USER_ID", "77")
+    await CoordinationStore(KworkConfig(expected_user_id=77)).list_unresolved_writes("account-77")
+
+    code, output = await _status()
+
+    assert code == 0
+    assert "(user_id 77), из KWORK_EXPECTED_USER_ID" in output
+    assert "Запись: выключена" in output
+    assert "Несверенные отправки: нет" in output
+
+
+@pytest.mark.asyncio
+async def test_status_explains_why_the_server_would_not_start(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    code, output = await _status()
+    assert code == 2
+    assert "не запустится. Аккаунт Kwork не подключён" in output
+
+    _store_login(state_dir, 42)
+    _store_login(state_dir, 77)
+    code, output = await _status()
+    assert code == 2
+    assert "kwork-mcp logout <user_id>" in output
+
+    monkeypatch.setenv("KWORK_EXPECTED_USER_ID", "99")
+    code, output = await _status()
+    assert code == 2
+    assert "Для user_id 99 нет сохранённого входа" in output
+
+    monkeypatch.setenv("KWORK_PASSWORD", "status-secret-sentinel")
+    code, output = await _status()
+    assert code == 2
+    assert "В окружении есть логин" in output
+    assert "status-secret-sentinel" not in output
+
+
+@pytest.mark.asyncio
+async def test_status_takes_no_arguments(state_dir: Path) -> None:
+    code = await run_bootstrap_cli(
+        ["status", "extra"], stdin=io.StringIO(), stdout=io.StringIO(), stderr=(stderr := io.StringIO())
+    )
+
+    assert code == 2
+    assert "status не принимает аргументы" in stderr.getvalue()
+
+
+def test_login_prints_a_claude_desktop_entry_with_the_absolute_uvx_path(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("kwork_mcp.bootstrap.shutil.which", lambda name: f"/opt/tools/bin/{name}")
+    monkeypatch.setenv("KWORK_SITE", "com")
+
+    output = _instructions()
+
+    assert (
+        f'"kwork-com": {{"command": "/opt/tools/bin/uvx", "args": ["kwork-mcp@{__version__}"], '
+        f'"env": {{"KWORK_SITE": "com", "KWORK_STATE_DIR": "{state_dir}"}}}}'
+    ) in output
+
+
+def test_login_falls_back_to_plain_uvx_when_it_is_not_on_path(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("kwork_mcp.bootstrap.shutil.which", lambda _name: None)
+    default = Path(os.environ["HOME"]) / ".local" / "state" / "kwork-mcp"
+    monkeypatch.setenv("KWORK_STATE_DIR", str(default))
+
+    assert f'"kwork": {{"command": "uvx", "args": ["kwork-mcp@{__version__}"]}}' in _instructions()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("name", "value", "expected"),
+    [
+        ("KWORK_STATE_DIR", "relative/state", "Некорректная конфигурация: KWORK_STATE_DIR"),
+        ("KWORK_PERSIST_TOKEN", "false", "KWORK_PERSIST_TOKEN=true"),
+    ],
+)
+async def test_status_reports_invalid_configuration(
+    state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str,
+    expected: str,
+) -> None:
+    _store_login(state_dir, 42)
+    monkeypatch.setenv(name, value)
+
+    code, output = await _status()
+
+    assert code == 2
+    assert expected in output

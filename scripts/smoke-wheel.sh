@@ -50,6 +50,15 @@ set -e
 [[ "$login_status" -eq 2 ]]
 [[ ! -s login.stdout ]]
 
+# status is offline: with no stored login it explains and creates nothing.
+set +e
+KWORK_STATE_DIR="${smoke_dir}/state" "${runner[@]}" kwork-mcp status >status.stdout 2>status.stderr
+status_status="$?"
+set -e
+[[ "$status_status" -eq 2 ]]
+grep -q "kwork-mcp 1.4.0" status.stdout
+[[ ! -e "${smoke_dir}/state" ]]
+
 set +e
 "${runner[@]}" kwork-mcp-bootstrap </dev/null >bootstrap.stdout 2>bootstrap.stderr
 bootstrap_status="$?"
