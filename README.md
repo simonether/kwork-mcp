@@ -9,6 +9,7 @@
 [![PyPI](https://img.shields.io/pypi/v/kwork-mcp?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/kwork-mcp/)
 [![Python](https://img.shields.io/badge/python-3.12%E2%80%933.14-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![MCP Badge](https://lobehub.com/badge/mcp/simonether-kwork-mcp)](https://lobehub.com/mcp/simonether-kwork-mcp)
 
 `kwork-mcp` подключает ваш аккаунт [Kwork](https://kwork.ru) к ИИ-агенту: Claude
 Code, Claude Desktop, Codex, Cursor и другим MCP-клиентам. Агент ищет проекты на
