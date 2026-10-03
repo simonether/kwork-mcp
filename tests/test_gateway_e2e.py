@@ -631,7 +631,7 @@ def offer_request(project_id: int = 77) -> SubmitOfferRequest:
 async def test_prepare_commit_submit_is_exactly_once_and_replay_safe(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     gateway = OfferProtocolGateway(config, CoordinationStore(config))
     prepared = await gateway.prepare_write(
         offer_request(),
@@ -665,7 +665,7 @@ async def test_prepare_commit_submit_is_exactly_once_and_replay_safe(
 async def test_duplicate_offer_is_rejected_at_prepare(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     existing = OfferRecord(
         offer_id=1,
         project_id=77,
@@ -691,7 +691,7 @@ async def test_timeout_becomes_submission_unknown_then_readback_reconciles(
     config_factory: Callable[..., KworkConfig],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     gateway = OfferProtocolGateway(
         config,
         CoordinationStore(config),
@@ -734,7 +734,7 @@ async def test_timeout_becomes_submission_unknown_then_readback_reconciles(
 async def test_prepared_account_mismatch_releases_claim_without_remote_write(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     gateway = OfferProtocolGateway(
         config,
         CoordinationStore(config),
@@ -765,7 +765,7 @@ async def test_gateway_requires_two_absent_readbacks_before_terminal_absence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = config_factory(
-        enable_writes=True,
+        writes="auto",
         expected_user_id=42,
         reconciliation_absence_interval_seconds=1.0,
     )
@@ -947,7 +947,7 @@ class WriteDispatchSession(WriteSession):
 async def test_all_non_offer_write_actions_use_exact_upstream_parameters(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     coordinator = CoordinationStore(config)
     client = WriteDispatchClient()
     gateway = KworkGateway(

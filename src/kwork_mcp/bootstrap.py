@@ -115,7 +115,7 @@ def _base_bootstrap_config() -> KworkConfig:
         phone_last=None,
         token=SecretStr(""),
         proxy_url=None,
-        enable_writes=False,
+        writes="off",
         token_file=None,
     )
 
@@ -142,7 +142,7 @@ def _auth_config(
             "phone_last": SecretStr(phone_last) if phone_last else None,
             "token": SecretStr(token),
             "proxy_url": SecretStr(proxy_url) if proxy_url else None,
-            "enable_writes": False,
+            "writes": "off",
             "token_file": None,
         }
     )
@@ -614,6 +614,12 @@ async def _run_write_admin(
 
 _SITE_URL = "https://simonether.github.io/kwork-mcp/#start"
 
+_WRITES_STATUS = {
+    "confirm": "Отправка: с подтверждением каждой (окно в клиенте или «да» в чате)",
+    "auto": "Отправка: агент отправляет сам, без подтверждения (KWORK_WRITES=auto)",
+    "off": "Отправка: выключена, только чтение (KWORK_WRITES=off)",
+}
+
 
 def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_retained: bool) -> str:
     """What to run next, with every setting the server needs to find this account."""
@@ -653,6 +659,9 @@ def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_r
         "  " + _terminal_safe(shlex.join(codex + server)),
         'Claude Desktop и Cursor: в "mcpServers" файла claude_desktop_config.json или ~/.cursor/mcp.json',
         "  " + _terminal_safe(f'"{name}": ' + json.dumps(desktop, ensure_ascii=False)),
+        "",
+        "Каждую отправку агент сначала покажет вам на подтверждение. Чтобы он отправлял сам, добавьте "
+        "KWORK_WRITES=auto, для одного только чтения KWORK_WRITES=off.",
         f"Подробнее: {_SITE_URL}",
     ]
     if legacy_file_retained:
@@ -781,7 +790,7 @@ async def _run_status(rest: Sequence[str], *, stdout: TextIO, stderr: TextIO) ->
     lines += [
         f"Аккаунт: {_terminal_safe(record.username)} (user_id {account_id}), {source}",
         f"Сайт: kwork.{config.site}",
-        "Запись: включена" if config.enable_writes else "Запись: выключена (включает KWORK_ENABLE_WRITES=true)",
+        _WRITES_STATUS[config.writes],
         "Прокси: задан" if record.proxy_url else "Прокси: нет",
         f"Хранилище: {_terminal_safe(str(config.state_dir))}",
     ]

@@ -200,7 +200,7 @@ def _offer(project_id: int = 77) -> SubmitOfferRequest:
 
 
 def _writes_config(config_factory: Callable[..., KworkConfig]) -> KworkConfig:
-    return config_factory(enable_writes=True, expected_user_id=ACCOUNT_ID)
+    return config_factory(writes="auto", expected_user_id=ACCOUNT_ID)
 
 
 async def _prepare_and_commit(gateway: KworkGateway, request: Any, idempotency: str) -> Any:

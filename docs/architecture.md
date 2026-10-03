@@ -69,7 +69,8 @@ shared route limiter/circuit для `signIn`/`actor`, не удаляет ста
 Первый подтверждённый `user_id` закрепляется на срок жизни process: ни 401, ни
 peer rotation не могут незаметно переключить MCP на другой account. Writes требуют:
 
-1. `KWORK_ENABLE_WRITES=true`;
+1. `KWORK_WRITES` не равен `off` (в режиме `confirm` клиент с окном подтверждения
+   дополнительно спрашивает пользователя перед `commit_write`);
 2. привязанный аккаунт (`KWORK_EXPECTED_USER_ID` или единственный сохранённый);
 3. соответствие свежего `get_me` ожидаемому ID;
 4. соответствие `KWORK_EXPECTED_USERNAME`, если он задан.

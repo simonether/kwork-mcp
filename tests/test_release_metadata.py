@@ -38,7 +38,7 @@ def test_example_environment_has_no_active_secret_assignment() -> None:
         if line.strip() and not line.lstrip().startswith("#") and "=" in line
     }
     assert active_names.isdisjoint(SERVER_SECRET_ENV_NAMES)
-    assert {"KWORK_PERSIST_TOKEN", "KWORK_ENABLE_WRITES"} <= active_names
+    assert {"KWORK_PERSIST_TOKEN", "KWORK_WRITES"} <= active_names
 
 
 def test_versions_and_console_entrypoints_are_consistent() -> None:
@@ -46,7 +46,7 @@ def test_versions_and_console_entrypoints_are_consistent() -> None:
     registry = json.loads((ROOT / "server.json").read_text())
 
     assert project["dynamic"] == ["version"]
-    assert registry["version"] == __version__ == "1.4.0"
+    assert registry["version"] == __version__ == "1.5.0"
     assert registry["packages"][0]["version"] == __version__
     assert project["scripts"] == {
         "kwork-mcp": "kwork_mcp:main",

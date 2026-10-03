@@ -897,6 +897,88 @@ class CoordinationStore:
 
         return await self._async(lambda: self._transaction(operation))
 
+    async def check_write_credentials(
+        self,
+        *,
+        write_id: str,
+        scope: str,
+        payload_hash: str,
+        confirmation_token: str,
+    ) -> StoredWrite:
+        """Verify commit credentials without claiming or changing the write."""
+
+        confirmation_hash = hashlib.sha256(confirmation_token.encode()).hexdigest()
+
+        def operation(conn: sqlite3.Connection) -> StoredWrite:
+            row = conn.execute(
+                "SELECT * FROM writes WHERE write_id=? AND scope=?",
+                (write_id, scope),
+            ).fetchone()
+            if row is None:
+                raise GatewayError(ErrorCode.NOT_FOUND, diagnostic="write_id_not_found")
+            record = self._row_to_write(row)
+            if not hmac.compare_digest(record.payload_hash, payload_hash) or not hmac.compare_digest(
+                str(row["confirmation_hash"]),
+                confirmation_hash,
+            ):
+                raise GatewayError(
+                    ErrorCode.INVALID_CONFIRMATION,
+                    diagnostic="write_confirmation_mismatch",
+                )
+            return record
+
+        return await self._async(lambda: self._transaction(operation))
+
+    async def decline_write(
+        self,
+        *,
+        write_id: str,
+        scope: str,
+        payload_hash: str,
+        confirmation_token: str,
+        error: ErrorInfo,
+    ) -> StoredWrite:
+        """Settle a prepared write the user refused; nothing reached Kwork.
+
+        Only a still-prepared, unexpired write changes. Anything else is
+        returned as it is, so a concurrent commit or expiry wins.
+        """
+
+        now = time.time()
+        confirmation_hash = hashlib.sha256(confirmation_token.encode()).hexdigest()
+        error_json = error.model_dump_json(exclude_none=True, by_alias=True)
+
+        def operation(conn: sqlite3.Connection) -> StoredWrite:
+            row = conn.execute(
+                "SELECT * FROM writes WHERE write_id=? AND scope=?",
+                (write_id, scope),
+            ).fetchone()
+            if row is None:
+                raise GatewayError(ErrorCode.NOT_FOUND, diagnostic="write_id_not_found")
+            record = self._row_to_write(row)
+            if not hmac.compare_digest(record.payload_hash, payload_hash) or not hmac.compare_digest(
+                str(row["confirmation_hash"]),
+                confirmation_hash,
+            ):
+                raise GatewayError(
+                    ErrorCode.INVALID_CONFIRMATION,
+                    diagnostic="write_confirmation_mismatch",
+                )
+            if record.state is not WriteState.PREPARED or record.expires_at <= now:
+                return record
+            conn.execute(
+                "UPDATE writes SET state=?,updated_at=?,error_json=? WHERE write_id=?",
+                (WriteState.FAILED_KNOWN.value, now, error_json, write_id),
+            )
+            conn.execute(
+                "INSERT INTO write_events(write_id,state,occurred_at,note) VALUES(?,?,?,?)",
+                (write_id, WriteState.FAILED_KNOWN.value, now, "declined_by_user"),
+            )
+            updated = conn.execute("SELECT * FROM writes WHERE write_id=?", (write_id,)).fetchone()
+            return self._row_to_write(updated)
+
+        return await self._async(lambda: self._transaction(operation))
+
     async def claim_write(
         self,
         *,

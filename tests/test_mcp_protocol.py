@@ -37,7 +37,7 @@ from kwork_mcp.models import (
     WriteStatusData,
 )
 from kwork_mcp.security import SecureTokenStore, TokenRecord, sanitize_external
-from kwork_mcp.server import SERVER_INSTRUCTIONS, create_server
+from kwork_mcp.server import create_server, server_instructions
 from kwork_mcp.session import KworkSessionManager
 from kwork_mcp.version import __version__
 
@@ -51,7 +51,7 @@ class ProtocolGateway(KworkGateway):
             expected_user_id=42,
             expected_username="fixture",
             binding_state="bound",
-            writes_enabled=True,
+            writes="auto",
             write_ready=True,
             raw={
                 "id": 42,
@@ -205,7 +205,7 @@ class ProxyRedactionProtocolGateway(ProtocolGateway):
             expected_user_id=42,
             expected_username="fixture",
             binding_state="bound",
-            writes_enabled=False,
+            writes="off",
             write_ready=False,
             raw=raw,
         )
@@ -374,7 +374,7 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
 ) -> None:
     config = _credentialless_server_config(
         config_factory(
-            enable_writes=True,
+            writes="auto",
             expected_user_id=42,
             expected_username="fixture",
         )
@@ -387,8 +387,8 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
             assert negotiated.protocol_version == protocol_version
             assert negotiated.server_info is not None
             assert negotiated.server_info.name == "kwork"
-            assert negotiated.server_info.version == __version__ == "1.4.0"
-            assert negotiated.instructions == SERVER_INSTRUCTIONS
+            assert negotiated.server_info.version == __version__ == "1.5.0"
+            assert negotiated.instructions == server_instructions("auto")
             assert negotiated.server_capabilities is not None
             assert negotiated.server_capabilities.tools is not None
             assert negotiated.server_capabilities.tasks is None
@@ -668,7 +668,7 @@ async def test_strict_input_validation_is_typed_and_never_echoes_payload(
 ) -> None:
     secret_text = "do-not-reflect-this-invalid-offer-text"
     server = create_server(
-        config=_credentialless_server_config(config_factory(enable_writes=True, expected_user_id=42)),
+        config=_credentialless_server_config(config_factory(writes="auto", expected_user_id=42)),
         gateway_factory=protocol_gateway_factory,
     )
     async with Client(server) as client:
@@ -754,7 +754,7 @@ async def test_every_write_protocol_tool_serializes_a_typed_envelope(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
     server = create_server(
-        config=_credentialless_server_config(config_factory(enable_writes=True, expected_user_id=42)),
+        config=_credentialless_server_config(config_factory(writes="auto", expected_user_id=42)),
         gateway_factory=protocol_gateway_factory,
     )
     write_id = "00000000-0000-4000-8000-000000000001"
@@ -784,7 +784,7 @@ async def test_write_tools_expose_typed_duplicate_unknown_not_found_and_mismatch
     config_factory: Callable[..., KworkConfig],
 ) -> None:
     server = create_server(
-        config=_credentialless_server_config(config_factory(enable_writes=True, expected_user_id=42)),
+        config=_credentialless_server_config(config_factory(writes="auto", expected_user_id=42)),
         gateway_factory=failure_gateway_factory,
     )
     write_id = "00000000-0000-4000-8000-000000000001"
@@ -858,7 +858,7 @@ async def test_every_write_tool_masks_unexpected_failures_in_typed_error_envelop
     config_factory: Callable[..., KworkConfig],
 ) -> None:
     server = create_server(
-        config=_credentialless_server_config(config_factory(enable_writes=True, expected_user_id=42)),
+        config=_credentialless_server_config(config_factory(writes="auto", expected_user_id=42)),
         gateway_factory=internal_failure_gateway_factory,
     )
     write_id = "00000000-0000-4000-8000-000000000001"

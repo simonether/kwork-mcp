@@ -361,7 +361,7 @@ async def test_semantic_write_validation_is_sanitized_before_tool_and_gateway(
         return gateway
 
     server = create_server(
-        config=_credentialless_server_config(config_factory(enable_writes=True, expected_user_id=42)),
+        config=_credentialless_server_config(config_factory(writes="auto", expected_user_id=42)),
         gateway_factory=gateway_factory,
     )
     log_output = StringIO()

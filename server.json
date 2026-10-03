@@ -3,7 +3,7 @@
   "name": "io.github.simonether/kwork-mcp",
   "title": "Kwork",
   "description": "Account-bound, typed and durable stdio MCP gateway for the Kwork freelance marketplace",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "websiteUrl": "https://github.com/simonether/kwork-mcp",
   "repository": {
     "url": "https://github.com/simonether/kwork-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "kwork-mcp",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
@@ -32,11 +32,12 @@
           "isSecret": false
         },
         {
-          "name": "KWORK_ENABLE_WRITES",
-          "description": "Explicitly enable prepare/commit writes for the bound account",
+          "name": "KWORK_WRITES",
+          "description": "Sending to Kwork: confirm asks the user before each send (client dialog or chat), auto lets the agent send, off is read-only",
           "isRequired": false,
           "isSecret": false,
-          "default": "false"
+          "default": "confirm",
+          "choices": ["confirm", "auto", "off"]
         },
         {
           "name": "KWORK_SITE",

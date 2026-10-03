@@ -165,7 +165,7 @@ class KworkConfig(BaseSettings):
 
     expected_user_id: int | None = Field(default=None, gt=0)
     expected_username: str | None = None
-    enable_writes: bool = False
+    writes: Literal["confirm", "auto", "off"] = "confirm"
 
     site: Literal["ru", "com"] = "ru"
 
@@ -284,8 +284,6 @@ class KworkConfig(BaseSettings):
             raise ValueError(
                 "KWORK_TOKEN_FILE was removed in 1.0; use KWORK_STATE_DIR for the secured account-scoped store"
             )
-        if self.enable_writes and self.expected_user_id is None:
-            raise ValueError("KWORK_ENABLE_WRITES requires KWORK_EXPECTED_USER_ID")
         if self.retry_backoff_max < self.retry_backoff_base:
             raise ValueError("retry_backoff_max must be >= retry_backoff_base")
 
@@ -412,6 +410,21 @@ class _UnresolvedServerEnvironment(KworkConfig):
         return self
 
 
+def reject_removed_settings(environ: Mapping[str, str] | None = None) -> None:
+    """Fail loudly on settings whose meaning changed instead of ignoring them.
+
+    KWORK_ENABLE_WRITES=false used to mean read-only; silently ignoring it would
+    widen what the agent may do, so it stops startup with the replacement.
+    """
+
+    source = os.environ if environ is None else environ
+    if any(name.upper() == "KWORK_ENABLE_WRITES" for name in source):
+        raise ValueError(
+            "KWORK_ENABLE_WRITES удалена в 1.5.0: замените её на KWORK_WRITES=off (только чтение), "
+            "confirm (подтверждение каждой отправки) или auto (агент отправляет сам)"
+        )
+
+
 def load_server_config() -> KworkConfig:
     """Read the server configuration, serving the single bound account by default.
 
@@ -420,6 +433,7 @@ def load_server_config() -> KworkConfig:
     tokens the server refuses to guess.
     """
 
+    reject_removed_settings()
     environment = _UnresolvedServerEnvironment()
     if environment.expected_user_id is not None:
         return validate_steady_state_server_config(KworkConfig())

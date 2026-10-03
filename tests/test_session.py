@@ -377,7 +377,7 @@ async def test_missing_web_login_landing_page_is_contract_drift_not_expired_auth
 async def test_writes_require_enablement_and_fresh_expected_identity(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    disabled_config = config_factory(expected_user_id=42)
+    disabled_config = config_factory(expected_user_id=42, writes="off")
     disabled = KworkSessionManager(
         disabled_config,
         CoordinationStore(disabled_config),
@@ -387,7 +387,7 @@ async def test_writes_require_enablement_and_fresh_expected_identity(
         await disabled.verify_write_identity()
     assert caught.value.code is ErrorCode.WRITE_DISABLED
 
-    enabled_config = config_factory(expected_user_id=42, enable_writes=True)
+    enabled_config = config_factory(expected_user_id=42, writes="auto")
     changed = FakeClient(
         [
             Actor(id=42, username="fixture"),

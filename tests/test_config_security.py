@@ -31,13 +31,14 @@ def test_configuration_never_loads_dotenv_from_cwd(
         KworkConfig()
 
 
-def test_configuration_requires_account_binding_for_writes(tmp_path: Path) -> None:
-    with pytest.raises(ValidationError, match="KWORK_EXPECTED_USER_ID"):
-        KworkConfig(token="x", state_dir=tmp_path, enable_writes=True)
+def test_configuration_defaults_to_confirmed_writes(tmp_path: Path) -> None:
+    assert KworkConfig(token="x", state_dir=tmp_path).writes == "confirm"
+    with pytest.raises(ValidationError, match="writes"):
+        KworkConfig(token="x", state_dir=tmp_path, writes="maybe")
     config = KworkConfig(
         token="x",
         state_dir=tmp_path,
-        enable_writes=True,
+        writes="auto",
         expected_user_id=42,
         expected_username=" @Fixture ",
     )

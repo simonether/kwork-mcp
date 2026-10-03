@@ -12,6 +12,7 @@ from typing import Any, cast
 from loguru import logger
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from kwork_mcp.config import contains_unsafe_text_codepoint
 from kwork_mcp.coordination import StoredWrite
 from kwork_mcp.errors import AmbiguousWriteError, ContractDriftError, GatewayError
 from kwork_mcp.gateway.actions import ACTION_HANDLERS
@@ -41,6 +42,60 @@ _DEFINITIVE_PREFLIGHT_CODES = frozenset(
         ErrorCode.PERMISSION,
     }
 )
+
+
+def _visible(text: object) -> str:
+    """Show controls and bidi overrides as escapes, so the dialog shows what is sent."""
+
+    return "".join(
+        f"\\u{ord(char):04x}" if contains_unsafe_text_codepoint(char) and char != "\n" else char for char in str(text)
+    )
+
+
+def _rubles(amount: object) -> str:
+    return f"{amount:,}".replace(",", "\u00a0") if isinstance(amount, int) else _visible(amount)
+
+
+def confirmation_message(record: StoredWrite) -> str:
+    """The text a person confirms before commit_write sends this write."""
+
+    payload = json.loads(record.payload_json)
+    request = payload.get("request") if isinstance(payload, dict) else None
+    if not isinstance(request, dict):
+        raise ContractDriftError("stored_write_request_invalid")
+    site = record.prepared_site
+    get = request.get
+    match record.action:
+        case WriteAction.SUBMIT_OFFER:
+            body = (
+                f"Отклик на проект {_visible(get('project_id'))}\n"
+                f"Название: {_visible(get('title'))}\n"
+                f"Цена: {_rubles(get('price'))} ₽, срок {_visible(get('duration_days'))} дн.\n\n"
+                f"{_visible(get('description'))}"
+            )
+        case WriteAction.DELETE_OFFER:
+            body = f"Удалить отклик {_visible(get('offer_id'))}"
+        case WriteAction.SEND_MESSAGE:
+            recipient = get("username") or f"user_id {get('user_id')}"
+            body = f"Сообщение для {_visible(recipient)}:\n\n{_visible(get('text'))}"
+        case WriteAction.EDIT_MESSAGE:
+            body = (
+                f"Изменить сообщение {_visible(get('message_id'))} в диалоге с {_visible(get('username'))}. "
+                f"Новый текст:\n\n{_visible(get('text'))}"
+            )
+        case WriteAction.DELETE_MESSAGE:
+            body = f"Удалить сообщение {_visible(get('message_id'))} в диалоге с {_visible(get('username'))}"
+        case WriteAction.SUBMIT_ORDER_APPROVAL:
+            files = get("file_ids") or []
+            body = f"Сдать заказ {_visible(get('order_id'))} на проверку" + (
+                f", файлов: {len(files)}" if isinstance(files, list) and files else ""
+            )
+        case WriteAction.SET_KWORK_STATE:
+            verb = "Запустить" if get("target_state") == "active" else "Поставить на паузу"
+            body = f"{verb} кворк {_visible(get('kwork_id'))}"
+        case _:
+            body = _visible(json.dumps(request, ensure_ascii=False, sort_keys=True))
+    return f"Отправить на kwork.{_visible(site)}?\n\n{body}"
 
 
 def _preflight_failure(error: GatewayError) -> GatewayError:
@@ -382,6 +437,59 @@ class WriteProtocol(OfferSubmission):
             if error.code is ErrorCode.WRITE_IN_PROGRESS:
                 return record
             raise
+
+    async def pending_confirmation(
+        self,
+        *,
+        write_id: str,
+        payload_hash: str,
+        confirmation_token: str,
+    ) -> StoredWrite | None:
+        """The write to show the user before commit, or None when commit would not send now.
+
+        A stored result, an expired or replayed write, a blocking unresolved
+        write and mark_dialog_read (nothing anyone else sees) skip the dialog,
+        so the user is never asked about something commit then refuses.
+        """
+
+        scope = self.session.scope
+        record = await self.coordinator.check_write_credentials(
+            write_id=write_id,
+            scope=scope,
+            payload_hash=payload_hash,
+            confirmation_token=confirmation_token,
+        )
+        self._require_prepared_site(record)
+        if (
+            record.state is not WriteState.PREPARED
+            or record.expires_at <= time.time()
+            or record.action is WriteAction.MARK_DIALOG_READ
+        ):
+            return None
+        unresolved = await self.coordinator.list_unresolved_writes(scope)
+        if any(other.write_id != write_id for other in unresolved):
+            return None
+        return record
+
+    async def decline_write(
+        self,
+        *,
+        write_id: str,
+        payload_hash: str,
+        confirmation_token: str,
+        correlation_id: str,
+    ) -> WriteStatusData:
+        """Record that the user refused this write in the client dialog."""
+
+        declined = GatewayError(ErrorCode.WRITE_DECLINED, diagnostic="declined_in_client")
+        record = await self.coordinator.decline_write(
+            write_id=write_id,
+            scope=self.session.scope,
+            payload_hash=payload_hash,
+            confirmation_token=confirmation_token,
+            error=declined.to_info(correlation_id),
+        )
+        return self._write_status(record, correlation_id=correlation_id)
 
     async def commit_write(
         self,

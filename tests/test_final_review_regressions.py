@@ -242,7 +242,7 @@ async def prepare_and_commit_unknown(
 async def test_confirmed_remote_success_with_ledger_failure_becomes_typed_unknown(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     coordinator = FailConfirmedSuccessOnceStore(config)
     gateway = OfferWriteGateway(config, coordinator, remote_succeeds=True)
 
@@ -269,7 +269,7 @@ async def test_reconcile_offer_accepts_benign_upstream_text_normalization(
     config_factory: Callable[..., KworkConfig],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     gateway = OfferWriteGateway(config, CoordinationStore(config), remote_succeeds=False)
     request = offer_request(
         title="  Реализация Cafe\u0301 API  ",
@@ -318,7 +318,7 @@ async def test_reconcile_other_offer_in_project_stays_unknown_without_absent_obs
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = config_factory(
-        enable_writes=True,
+        writes="auto",
         expected_user_id=42,
         reconciliation_absence_interval_seconds=1.0,
     )
@@ -365,7 +365,7 @@ async def test_unknown_order_status_cannot_be_negative_reconciliation_evidence(
     config_factory: Callable[..., KworkConfig],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     gateway = ApprovalWriteGateway(config, CoordinationStore(config))
     prepared = await gateway.prepare_write(
         SubmitOrderApprovalRequest(

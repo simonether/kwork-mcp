@@ -5,6 +5,34 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-03
+
+### Added
+
+- Подтверждение каждой отправки в окне клиента. В режиме по умолчанию
+  `commit_write` в Claude Code, Cursor и Codex сначала показывает вам точный
+  текст, цену и получателя из сохранённой записи, и отправка уходит только
+  после вашей кнопки: агент не может ответить за вас или подменить текст. Отказ
+  ничего не отправляет и завершает запись с `write_declined`. Работает и на
+  соединениях MCP 2025-11-25, и на 2026-07-28.
+- `prepare_write` сообщает в поле `confirmation`, кто подтверждает отправку:
+  окно клиента (`client`), «да» в чате (`chat`) или никто (`none`).
+  `account_status` показывает режим (`writes`) и способ подтверждения
+  (`write_confirmation`).
+
+### Changed
+
+- `KWORK_WRITES=confirm|auto|off` вместо `KWORK_ENABLE_WRITES`. По умолчанию
+  `confirm`: отправка доступна сразу после входа, но каждую подтверждаете вы.
+  `auto` разрешает агенту отправлять самому, `off` оставляет только чтение и
+  скрывает `prepare_write` и `commit_write`. В клиентах без окна подтверждения,
+  например в Claude Desktop, `confirm` просит агента получить ваше «да» в чате.
+- `KWORK_ENABLE_WRITES` удалена. Сервер с ней не запускается и подсказывает
+  замену: прежнее `false` (только чтение) теперь записывается как
+  `KWORK_WRITES=off`.
+- Инструкции сервера для агента зависят от режима отправки.
+- `kwork-mcp status` и вывод `login` показывают режим отправки.
+
 ## [1.4.0] - 2026-10-03
 
 ### Added
@@ -239,7 +267,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.0
 [1.4.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.4.0
 [1.3.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.3.0
 [1.2.1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.2.1

@@ -816,7 +816,7 @@ def write_requests() -> list[Any]:
 async def test_all_prepare_preflight_success_branches(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     gateway = MatrixGateway(config, CoordinationStore(config))
     for request in write_requests():
         resolved: dict[str, Any] = {}
@@ -843,7 +843,7 @@ async def test_all_prepare_preflight_success_branches(
 async def test_prepare_preflight_known_failure_branches(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     gateway = MatrixGateway(config, CoordinationStore(config))
     submit = write_requests()[0]
 
@@ -1274,7 +1274,7 @@ async def prepare_commit_record(
 async def test_commit_missing_and_known_preflight_failure_paths(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = CoordinationStore(config)
     gateway = CommitGateway(config, store)
     assert await gateway.get_write_status("missing", correlation_id="status") is None
@@ -1340,7 +1340,7 @@ async def test_commit_remote_failure_classification_paths(
     remote_error: BaseException,
     expected_state: WriteState,
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
     store = CoordinationStore(config)
     record, token = await prepare_commit_record(
         store,
@@ -1361,7 +1361,7 @@ async def test_commit_remote_failure_classification_paths(
 async def test_commit_stored_payload_and_recipient_drift_fail_closed(
     config_factory: Callable[..., KworkConfig],
 ) -> None:
-    config = config_factory(enable_writes=True, expected_user_id=42)
+    config = config_factory(writes="auto", expected_user_id=42)
 
     store = CoordinationStore(config)
     malformed, malformed_token = await prepare_commit_record(
