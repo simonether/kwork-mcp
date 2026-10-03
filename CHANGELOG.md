@@ -5,6 +5,25 @@
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-03
+
+### Removed
+
+- Окно подтверждения отправки в клиенте (MCP elicitation) из 1.5.0. На практике
+  оно работало не везде: Claude Desktop его не поддерживает, а Codex.app в режиме
+  полного доступа (`approval_policy = "never"`) сам отвечает отказом, и отправка
+  становилась невозможной. Вместе с окном ушли ошибка `write_declined` и поле
+  `account_status.write_confirmation`.
+
+### Changed
+
+- `KWORK_WRITES=confirm` теперь работает одинаково во всех клиентах: агент
+  показывает точный текст, цену и получателя и отправляет только после вашего
+  «да» в чате (`prepare_write.confirmation` = `chat`). Сервер это «да» проверить
+  не может; вторую кнопку даёт разрешение на вызов инструмента в клиенте, в Codex
+  его включает `default_tools_approval_mode = "writes"`. Режимы `auto` и `off`
+  не изменились.
+
 ## [1.5.0] - 2026-10-03
 
 ### Added
@@ -267,7 +286,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.1
 [1.5.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.0
 [1.4.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.4.0
 [1.3.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.3.0

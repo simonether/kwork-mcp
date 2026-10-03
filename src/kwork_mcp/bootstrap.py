@@ -615,7 +615,7 @@ async def _run_write_admin(
 _SITE_URL = "https://simonether.github.io/kwork-mcp/#start"
 
 _WRITES_STATUS = {
-    "confirm": "Отправка: с подтверждением каждой (окно в клиенте или «да» в чате)",
+    "confirm": "Отправка: с подтверждением каждой, агент ждёт вашего «да»",
     "auto": "Отправка: агент отправляет сам, без подтверждения (KWORK_WRITES=auto)",
     "off": "Отправка: выключена, только чтение (KWORK_WRITES=off)",
 }

@@ -12,9 +12,8 @@
 
 `kwork-mcp` подключает ваш аккаунт [Kwork](https://kwork.ru) к ИИ-агенту: Claude
 Code, Claude Desktop, Codex, Cursor и другим MCP-клиентам. Агент ищет проекты на
-бирже, читает диалоги, заказы и офферы, готовит отклики. По умолчанию каждую
-отправку на Kwork вы подтверждаете сами: кнопкой в окне клиента или словом «да»
-в чате.
+бирже, читает диалоги, заказы и офферы, готовит отклики. По умолчанию агент
+отправляет что-то на Kwork только после вашего «да» на точный текст.
 
 Сайт проекта: [simonether.github.io/kwork-mcp](https://simonether.github.io/kwork-mcp/).
 
@@ -38,7 +37,7 @@ Windows не поддерживается.
 В обычном терминале:
 
 ```bash
-uvx kwork-mcp@1.5.0 login
+uvx kwork-mcp@1.5.1 login
 ```
 
 Команда скрыто спросит логин и пароль Kwork, а также, по желанию, последние 4 цифры
@@ -58,16 +57,16 @@ Desktop и Cursor.
 **Claude Code:**
 
 ```bash
-claude mcp add kwork --scope user -- uvx kwork-mcp@1.5.0
+claude mcp add kwork --scope user -- uvx kwork-mcp@1.5.1
 ```
 
 **Codex:**
 
 ```bash
-codex mcp add kwork -- uvx kwork-mcp@1.5.0
+codex mcp add kwork -- uvx kwork-mcp@1.5.1
 ```
 
-**Cursor:** [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=kwork&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS41LjAiXX0%3D)
+**Cursor:** [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=kwork&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS41LjEiXX0%3D)
 
 <details>
 <summary><b>Claude Desktop и другие клиенты</b></summary>
@@ -80,7 +79,7 @@ Cursor без кнопки: `~/.cursor/mcp.json` или `.cursor/mcp.json` пр�
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["kwork-mcp@1.5.0"]
+      "args": ["kwork-mcp@1.5.1"]
     }
   }
 }
@@ -102,9 +101,9 @@ JSON.
 Перезапустите клиент и попросите агента: «проверь статус аккаунта Kwork». Он
 вызовет `account_status` и покажет ваш `user_id` и имя.
 
-Без клиента то же видно в терминале: `uvx kwork-mcp@1.5.0 status` покажет, с каким
+Без клиента то же видно в терминале: `uvx kwork-mcp@1.5.1 status` покажет, с каким
 аккаунтом и сайтом запустится сервер, не обращаясь к Kwork. Сменить аккаунт:
-`uvx kwork-mcp@1.5.0 logout`, затем снова `login`.
+`uvx kwork-mcp@1.5.1 logout`, затем снова `login`.
 
 ## Отправка откликов и сообщений
 
@@ -113,22 +112,22 @@ JSON.
 
 | `KWORK_WRITES` | Что происходит |
 |---|---|
-| `confirm` (по умолчанию) | Перед каждой отправкой вы видите точный текст, цену и получателя и подтверждаете их |
+| `confirm` (по умолчанию) | Перед каждой отправкой агент показывает точный текст, цену и получателя и ждёт вашего «да» |
 | `auto` | Агент отправляет сам, когда это нужно для вашей задачи, без отдельного подтверждения |
 | `off` | Только чтение: инструменты отправки скрыты, агент их не видит |
 
-В режиме `confirm` Claude Code, Cursor и Codex показывают окно подтверждения: его
-рисует сервер по сохранённой записи, и нажимаете в нём вы, а не агент. Отказ
-ничего не отправляет. Клиенты без такого окна, например Claude Desktop, получают
-от сервера указание показать вам текст в чате и отправлять только после вашего
-«да». Какой способ действует, показывает `account_status`. Отметка диалога
-прочитанным уходит без окна: её никто, кроме вас, не видит.
+В режиме `confirm` сервер в ответе `prepare_write` и в своих инструкциях
+указывает агенту показать вам запрос и отправлять только после вашего «да». Сам
+проверить это «да» сервер не может. Вторую кнопку даёт клиент: Claude Code и
+Claude Desktop по умолчанию спрашивают разрешение перед инструментом отправки, а в
+Codex то же включает `default_tools_approval_mode = "writes"` в настройках
+сервера `[mcp_servers.kwork]`.
 
 Режим выбирается в конфиге клиента, например для Claude Code:
 
 ```bash
 claude mcp remove kwork --scope user
-claude mcp add kwork --scope user -e KWORK_WRITES=auto -- uvx kwork-mcp@1.5.0
+claude mcp add kwork --scope user -e KWORK_WRITES=auto -- uvx kwork-mcp@1.5.1
 ```
 
 В режиме `auto` от чужих команд в текстах проектов и сообщений защищает только
@@ -148,7 +147,7 @@ claude mcp add kwork --scope user -e KWORK_WRITES=auto -- uvx kwork-mcp@1.5.0
 `KWORK_SITE=com`. Например, для Claude Code вторым сервером рядом с kwork.ru:
 
 ```bash
-claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.5.0
+claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.5.1
 ```
 
 Аккаунт и токен у kwork.ru и kwork.com общие, поэтому заново входить не нужно.
@@ -161,13 +160,12 @@ claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.5.0
 
 | Что видите | Что делать |
 |---|---|
-| `auth_required` или `auth_expired` | Токен отсутствует или истёк: снова выполните `uvx kwork-mcp@1.5.0 login` и перезапустите клиент |
-| Сервер не стартует: «аккаунт Kwork не подключён» | Выполните `uvx kwork-mcp@1.5.0 login` |
-| Сервер не стартует: «подключено несколько аккаунтов Kwork» | Укажите нужный аккаунт в `KWORK_EXPECTED_USER_ID` или удалите лишний вход: `uvx kwork-mcp@1.5.0 logout <user_id>` |
-| Непонятно, какой аккаунт и сайт использует сервер | `uvx kwork-mcp@1.5.0 status` покажет это без запросов к Kwork |
+| `auth_required` или `auth_expired` | Токен отсутствует или истёк: снова выполните `uvx kwork-mcp@1.5.1 login` и перезапустите клиент |
+| Сервер не стартует: «аккаунт Kwork не подключён» | Выполните `uvx kwork-mcp@1.5.1 login` |
+| Сервер не стартует: «подключено несколько аккаунтов Kwork» | Укажите нужный аккаунт в `KWORK_EXPECTED_USER_ID` или удалите лишний вход: `uvx kwork-mcp@1.5.1 logout <user_id>` |
+| Непонятно, какой аккаунт и сайт использует сервер | `uvx kwork-mcp@1.5.1 status` покажет это без запросов к Kwork |
 | Сервер не стартует, «некорректная конфигурация: …» | Проверьте названные переменные `KWORK_*` в конфиге клиента |
 | «KWORK_ENABLE_WRITES удалена в 1.5.0» | Замените её на `KWORK_WRITES=off`, `confirm` или `auto` |
-| `write_declined` | Отправку отклонили в окне подтверждения, на Kwork ничего не ушло |
 | `write_disabled` | Сервер запущен с `KWORK_WRITES=off`, доступно только чтение |
 | `captcha` | Войдите в Kwork в браузере, пройдите капчу, затем повторите `login` |
 | Claude Desktop не видит сервер | Возьмите блок для Claude Desktop из вывода `login` (в нём полный путь к `uvx`) или укажите путь из `which uvx`, затем перезапустите приложение |
@@ -177,9 +175,9 @@ claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.5.0
 Ручная фиксация исхода запускается с теми же `KWORK_*` переменными, что у сервера:
 
 ```bash
-uvx kwork-mcp@1.5.0 pending-writes
-uvx kwork-mcp@1.5.0 resolve-write <write_id> succeeded   # операция на Kwork прошла
-uvx kwork-mcp@1.5.0 resolve-write <write_id> absent      # операции на Kwork нет
+uvx kwork-mcp@1.5.1 pending-writes
+uvx kwork-mcp@1.5.1 resolve-write <write_id> succeeded   # операция на Kwork прошла
+uvx kwork-mcp@1.5.1 resolve-write <write_id> absent      # операции на Kwork нет
 ```
 
 ## Инструменты

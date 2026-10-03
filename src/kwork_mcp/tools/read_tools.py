@@ -30,7 +30,6 @@ from kwork_mcp.tools.common import (
     gateway_from_context,
     success,
     unexpected_failure,
-    write_confirmation,
 )
 
 AccountOutcome = ResultEnvelope[AccountData]
@@ -64,9 +63,7 @@ def register(mcp: FastMCP) -> None:
         """
         correlation = correlation_id()
         try:
-            gateway = gateway_from_context(ctx)
-            data = await gateway.account_status()
-            data = data.model_copy(update={"write_confirmation": write_confirmation(ctx, gateway.config.writes)})
+            data = await gateway_from_context(ctx).account_status()
             return success(
                 AccountOutcome,
                 data=data,

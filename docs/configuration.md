@@ -149,27 +149,19 @@ sleep сверх `RETRY_BACKOFF_MAX`; shared circuit никогда не отк�
 
 `KWORK_WRITES` определяет, кто решает, уйдёт ли подготовленная запись на Kwork:
 
-- `confirm` (по умолчанию). Если клиент объявил возможность `elicitation` в форме
-  (Claude Code, Cursor, Codex), `commit_write` перед отправкой показывает
-  пользователю окно с текстом из сохранённой записи; агент не может ни подменить
-  этот текст, ни ответить за пользователя. На соединениях 2025-11-25 и раньше окно
-  открывается запросом `elicitation/create` посреди вызова, на 2026-07-28
-  `commit_write` возвращает `InputRequiredResult`, и клиент повторяет вызов с
-  ответом; запечатанный `request_state` привязывает ответ к `write_id` и
-  `payload_hash`. Отказ или закрытие окна переводит запись в `failed_known` с
-  `write_declined` без обращения к Kwork; сбой клиента при показе окна оставляет
-  запись `prepared`. Окно не показывается для записи, которую `commit` всё равно
-  не отправит (не `prepared`, истёк TTL, другая запись в `submission_unknown`), и
-  для `mark_dialog_read`. Клиент без `elicitation` (Claude Desktop) получает в
-  `prepare_write.confirmation` значение `chat` и указание запросить «да» в чате:
-  сервер не может проверить такое подтверждение.
-- `auto`. Агент вызывает `commit_write` сам, окна нет.
+- `confirm` (по умолчанию). `prepare_write` возвращает `confirmation: chat`, а
+  инструкции сервера требуют показать пользователю точный текст, цену и получателя
+  и вызывать `commit_write` только после его явного «да». Сервер не может проверить
+  это подтверждение; дополнительную кнопку даёт разрешение на вызов инструмента в
+  клиенте (в Codex `default_tools_approval_mode = "writes"`).
+- `auto`. `prepare_write` возвращает `confirmation: none`, агент вызывает
+  `commit_write` сам.
 - `off`. Только чтение: `prepare_write` и `commit_write` не регистрируются,
   `get_write_status` и `reconcile_write` остаются.
 
-`account_status.writes` показывает режим, `account_status.write_confirmation`
-показывает, как подтверждается отправка в этом клиенте: `client`, `chat`, `none`
-или `off`. Переменная `KWORK_ENABLE_WRITES` удалена в 1.5.0: сервер с ней не
+`account_status.writes` показывает режим. Подтверждение окном клиента через MCP
+elicitation было в 1.5.0 и убрано в 1.5.1: Claude Desktop его не поддерживает, а
+Codex.app с `approval_policy = "never"` отклоняет такие запросы сам. Переменная `KWORK_ENABLE_WRITES` удалена в 1.5.0: сервер с ней не
 запускается и подсказывает замену, чтобы прежнее `false` не превратилось молча в
 отправку с подтверждением.
 
