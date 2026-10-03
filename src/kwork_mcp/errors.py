@@ -29,16 +29,17 @@ from kwork.exceptions import KworkException, KworkHTTPException, KworkRetryExcee
 from pydantic import ValidationError
 
 from kwork_mcp.models import ErrorCode, ErrorInfo
+from kwork_mcp.version import __version__
 
 _MAX_RETRY_HINT_SECONDS = 900.0
 
 _SAFE_MESSAGES: dict[ErrorCode, str] = {
-    ErrorCode.AUTH_REQUIRED: "Авторизация Kwork не настроена.",
-    ErrorCode.AUTH_EXPIRED: "Сессия Kwork недействительна; требуется новая авторизация.",
+    ErrorCode.AUTH_REQUIRED: f"Авторизация Kwork не настроена: выполните в терминале «uvx kwork-mcp@{__version__} login».",
+    ErrorCode.AUTH_EXPIRED: f"Сессия Kwork недействительна: выполните в терминале «uvx kwork-mcp@{__version__} login» заново.",
     ErrorCode.AUTH_IN_PROGRESS: "Авторизация Kwork уже выполняется другим процессом.",
-    ErrorCode.ACCOUNT_BINDING_REQUIRED: "Для операций записи требуется ожидаемый Kwork user ID.",
+    ErrorCode.ACCOUNT_BINDING_REQUIRED: "Аккаунт Kwork не выбран: выполните login или укажите KWORK_EXPECTED_USER_ID.",
     ErrorCode.ACCOUNT_MISMATCH: "Авторизованный Kwork-аккаунт не совпадает с ожидаемым.",
-    ErrorCode.CAPTCHA: "Kwork требует пройти капчу в браузере и обновить авторизацию.",
+    ErrorCode.CAPTCHA: "Kwork требует пройти капчу в браузере, после этого снова выполните kwork-mcp login.",
     ErrorCode.PERMISSION: "Kwork отклонил операцию из-за прав доступа.",
     ErrorCode.IP_BLOCKED: "Kwork отклонил запрос для текущего IP-адреса.",
     ErrorCode.CSRF: "Kwork отклонил web-запрос из-за CSRF/session validation.",
@@ -52,7 +53,7 @@ _SAFE_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.CONTRACT_DRIFT: "Ответ или API-контракт Kwork не соответствует закреплённой версии.",
     ErrorCode.CREDENTIAL_UPDATE_UNKNOWN: (
         "Не удалось подтвердить долговечность обновления credential store; "
-        "проверьте авторизацию перед повторным bootstrap."
+        "проверьте авторизацию перед повторным входом (kwork-mcp login)."
     ),
     ErrorCode.AMBIGUOUS_WRITE: (
         "Результат записи неизвестен. Не повторяйте commit; сначала выполните reconcile_write."

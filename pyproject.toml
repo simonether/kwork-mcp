@@ -1,14 +1,14 @@
 [project]
 name = "kwork-mcp"
 dynamic = ["version"]
-description = "Production-grade MCP gateway for the Kwork freelance marketplace"
+description = "MCP-сервер для Kwork.ru и kwork.com: биржа, отклики, диалоги и заказы из Claude Code, Codex и Cursor. Отправка только после вашего подтверждения"
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 authors = [
     { name = "Simon Sudarushkin", email = "simonsudarushkin@gmail.com" },
 ]
-keywords = ["mcp", "mcp-server", "kwork", "freelance", "claude", "codex", "cursor"]
+keywords = ["mcp", "mcp-server", "model-context-protocol", "kwork", "kwork-ru", "кворк", "freelance", "фриланс", "claude", "claude-code", "codex", "cursor", "ai-agents"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: MIT License",
