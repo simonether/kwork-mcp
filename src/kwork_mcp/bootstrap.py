@@ -713,6 +713,12 @@ def _client_entry(actor: Actor, config: KworkConfig) -> dict[str, Any]:
     return entry
 
 
+def _failure_code(exc: BaseException) -> str:
+    # The class and the Windows error code are safe to show and tell the cause.
+    winerror = getattr(exc, "winerror", None)
+    return f"{type(exc).__name__}, WinError {winerror}" if winerror else type(exc).__name__
+
+
 def _connect_clients(
     actor: Actor,
     config: KworkConfig,
@@ -747,8 +753,9 @@ def _connect_clients(
             continue
         try:
             result = clients.register_server(client.path, name, entry)
-        except (clients.ClientConfigError, OSError):
-            stdout.write(f"{client.name}: не удалось записать {location}, добавьте блок ниже вручную.\n")
+        except (clients.ClientConfigError, OSError) as exc:
+            reason = _failure_code(exc)
+            stdout.write(f"{client.name}: не удалось записать {location} ({reason}), добавьте блок ниже вручную.\n")
             continue
         connected.add(client.name)
         stdout.write(f"{client.name}: kwork-mcp подключён. {_restart_hint(client.name)}\n")

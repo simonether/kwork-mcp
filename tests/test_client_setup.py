@@ -103,3 +103,23 @@ def test_login_does_not_ask_again_when_the_server_is_already_there(tmp_path: Pat
     assert code == 0
     assert "Подключить" not in stderr
     assert "Claude Desktop: kwork-mcp уже подключён." in stdout
+
+
+def test_login_names_the_error_when_the_config_cannot_be_written(
+    tmp_path: Path,
+    claude_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refuse(*_args: Any) -> clients.Registration:
+        error = PermissionError(13, "in use")
+        error.winerror = 32  # type: ignore[attr-defined]
+        raise error
+
+    monkeypatch.setattr(clients, "register_server", refuse)
+
+    code, stdout, _stderr = _login(tmp_path, "да\nда\n")
+
+    assert code == 0
+    assert "не удалось записать" in stdout
+    assert "PermissionError, WinError 32" in stdout
+    assert 'Claude Desktop и Cursor: в "mcpServers" файла' in stdout

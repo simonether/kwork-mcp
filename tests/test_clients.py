@@ -188,3 +188,30 @@ def test_the_config_keeps_its_permissions(tmp_path: Path) -> None:
 )
 def test_only_kwork_mcp_entries_count_as_ours(entry: object, ours: bool) -> None:
     assert is_kwork_mcp_entry(entry) is ours
+
+
+def test_a_config_that_cannot_be_replaced_is_written_in_place(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An antivirus scan or the client itself may hold the file so that it
+    # cannot be replaced; it can still be rewritten, and the backup is made first.
+    path = tmp_path / "claude_desktop_config.json"
+    path.write_text(json.dumps({"mcpServers": {"files": {"command": "npx"}}}), encoding="utf-8")
+
+    def refuse(_source: str, _target: Path) -> None:
+        raise PermissionError(13, "in use")
+
+    monkeypatch.setattr(clients.private_fs, "replace", refuse)
+
+    result = register_server(path, "kwork", ENTRY)
+
+    assert result.outcome == "added"
+    assert json.loads(path.read_text(encoding="utf-8"))["mcpServers"]["kwork"] == ENTRY
+    assert json.loads((tmp_path / "claude_desktop_config.json.bak").read_text(encoding="utf-8")) == {
+        "mcpServers": {"files": {"command": "npx"}}
+    }
+    assert sorted(item.name for item in tmp_path.iterdir()) == [
+        "claude_desktop_config.json",
+        "claude_desktop_config.json.bak",
+    ]

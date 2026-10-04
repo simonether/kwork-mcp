@@ -137,8 +137,25 @@ def register_server(path: Path, name: str, entry: dict[str, Any]) -> Registratio
             os.fsync(handle.fileno())
         if read is not None:
             shutil.copymode(path, temp_name)
-        private_fs.replace(temp_name, path)
+        try:
+            private_fs.replace(temp_name, path)
+        except PermissionError:
+            if read is None:
+                raise
+            # An antivirus scan or the client itself may hold the file so that
+            # it cannot be replaced; it can still be rewritten, and the backup
+            # above keeps the previous version.
+            _overwrite(path, payload)
+            Path(temp_name).unlink(missing_ok=True)
     except BaseException:
         Path(temp_name).unlink(missing_ok=True)
         raise
     return Registration("updated" if previous is not None else "added", backup)
+
+
+def _overwrite(path: Path, payload: bytes) -> None:
+    with path.open("r+b") as handle:
+        handle.write(payload)
+        handle.truncate()
+        handle.flush()
+        os.fsync(handle.fileno())
