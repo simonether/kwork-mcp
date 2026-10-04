@@ -14,6 +14,12 @@ cleanup() {
 }
 trap cleanup EXIT
 cd "$smoke_dir"
+# Native Windows programs need a Windows path; Git Bash ships cygpath.
+if command -v cygpath >/dev/null; then
+  state_dir="$(cygpath -m "$smoke_dir")/state"
+else
+  state_dir="${smoke_dir}/state"
+fi
 
 runner=(uv run --isolated --no-project --with "$wheel" --)
 
@@ -24,7 +30,7 @@ import kwork_mcp
 from kwork_mcp.bootstrap import run_bootstrap_cli
 from kwork_mcp.server import create_server
 
-assert kwork_mcp.__version__ == "1.5.2"
+assert kwork_mcp.__version__ == "1.6.0rc1"
 assert callable(run_bootstrap_cli)
 create_server()
 scripts = {
@@ -39,9 +45,10 @@ assert scripts == {
 PY
 
 "${runner[@]}" kwork-mcp-bootstrap --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp-bootstrap --version)" == "1.5.2" ]]
+# Python on Windows ends printed lines with CRLF; the comparisons drop the CR.
+[[ "$("${runner[@]}" kwork-mcp-bootstrap --version | tr -d '\r')" == "1.6.0rc1" ]]
 "${runner[@]}" kwork-mcp --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp --version)" == "1.5.2" ]]
+[[ "$("${runner[@]}" kwork-mcp --version | tr -d '\r')" == "1.6.0rc1" ]]
 
 set +e
 "${runner[@]}" kwork-mcp login </dev/null >login.stdout 2>login.stderr
@@ -52,16 +59,16 @@ set -e
 
 # status is offline: with no stored login it explains and creates nothing.
 set +e
-KWORK_STATE_DIR="${smoke_dir}/state" "${runner[@]}" kwork-mcp status >status.stdout 2>status.stderr
+KWORK_STATE_DIR="$state_dir" "${runner[@]}" kwork-mcp status >status.stdout 2>status.stderr
 status_status="$?"
 set -e
 [[ "$status_status" -eq 2 ]]
-grep -q "kwork-mcp 1.5.2" status.stdout
+grep -q "kwork-mcp 1.6.0rc1" status.stdout
 [[ ! -e "${smoke_dir}/state" ]]
 
 # Directory inspections start the bare server with no account: it must list the
 # tools, answer every call with auth_required and create no state.
-KWORK_STATE_DIR="${smoke_dir}/state" "${runner[@]}" python -I - <<'PY'
+KWORK_STATE_DIR="$state_dir" "${runner[@]}" python -I - <<'PY'
 import json
 import subprocess
 import sys
@@ -78,7 +85,8 @@ server = subprocess.Popen(
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL,
-    text=True,
+    # MCP speaks UTF-8; the locale default on Windows is the ANSI code page.
+    encoding="utf-8",
 )
 assert server.stdin is not None and server.stdout is not None
 answers = {}

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_registry_metadata_advertises_only_safe_server_environment() -> None:
-    metadata = json.loads((ROOT / "server.json").read_text())
+    metadata = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
     package = metadata["packages"][0]
     variables = package["environmentVariables"]
     by_name = {item["name"]: item for item in variables}
@@ -34,7 +34,7 @@ def test_registry_metadata_advertises_only_safe_server_environment() -> None:
 def test_example_environment_has_no_active_secret_assignment() -> None:
     active_names = {
         line.partition("=")[0].strip()
-        for line in (ROOT / ".env.example").read_text().splitlines()
+        for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.lstrip().startswith("#") and "=" in line
     }
     assert active_names.isdisjoint(SERVER_SECRET_ENV_NAMES)
@@ -42,11 +42,11 @@ def test_example_environment_has_no_active_secret_assignment() -> None:
 
 
 def test_versions_and_console_entrypoints_are_consistent() -> None:
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-    registry = json.loads((ROOT / "server.json").read_text())
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    registry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
 
     assert project["dynamic"] == ["version"]
-    assert registry["version"] == __version__ == "1.5.2"
+    assert registry["version"] == __version__ == "1.6.0rc1"
     assert registry["packages"][0]["version"] == __version__
     assert project["scripts"] == {
         "kwork-mcp": "kwork_mcp:main",
@@ -56,7 +56,7 @@ def test_versions_and_console_entrypoints_are_consistent() -> None:
 
 def test_install_instructions_pin_the_current_version() -> None:
     for name in ("README.md", "site/index.html"):
-        text = (ROOT / name).read_text()
+        text = (ROOT / name).read_text(encoding="utf-8")
         assert set(re.findall(r"kwork-mcp(?:==|@)([0-9][0-9A-Za-z.]*)", text)) == {__version__}, name
         # The "Add to Cursor" link carries its own base64 copy of the config.
         configs = re.findall(r"install-mcp\?name=kwork&(?:amp;)?config=([A-Za-z0-9+/%=]+)", text)
@@ -65,12 +65,12 @@ def test_install_instructions_pin_the_current_version() -> None:
             config = json.loads(base64.b64decode(unquote(encoded)))
             assert config == {"command": "uvx", "args": [f"kwork-mcp@{__version__}"]}, name
 
-    site = (ROOT / "site" / "index.html").read_text()
+    site = (ROOT / "site" / "index.html").read_text(encoding="utf-8")
     assert f'"softwareVersion": "{__version__}"' in site
 
 
 def test_release_workflow_fails_closed_for_prerelease_registry_publish() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
     assert "source_is_prerelease = Version(__version__).is_prerelease" in workflow
     assert "source_is_prerelease != event_is_prerelease" in workflow
@@ -82,12 +82,12 @@ def test_release_workflow_fails_closed_for_prerelease_registry_publish() -> None
 
 def test_workflows_use_explicit_locked_mode_without_conflicting_environment() -> None:
     for name in ("ci.yml", "release.yml"):
-        workflow = (ROOT / ".github" / "workflows" / name).read_text()
+        workflow = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
         assert "UV_FROZEN" not in workflow
         assert "uv sync --locked --all-groups" in workflow
 
 
 def test_release_asset_upload_does_not_require_a_checkout() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
     assert 'gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY"' in workflow

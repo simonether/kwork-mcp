@@ -34,8 +34,10 @@ from kwork_mcp.models import (
     WriteAction,
 )
 from kwork_mcp.server import create_server
+from tests.platforms import posix_only
 
 
+@posix_only
 def test_default_state_dir_honors_xdg_and_falls_back_to_home(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

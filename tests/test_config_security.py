@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import stat
 from pathlib import Path
 
 import pytest
@@ -16,6 +15,7 @@ from kwork_mcp.security import (
     redact_text,
     sanitize_external,
 )
+from tests.platforms import assert_private_directory, assert_private_file, posix_only
 
 
 def test_configuration_never_loads_dotenv_from_cwd(
@@ -69,6 +69,7 @@ def test_secret_inputs_are_hidden_in_validation_errors(tmp_path: Path) -> None:
     assert "input_value=" not in rendered
 
 
+@posix_only
 def test_secure_directory_rejects_permissions_and_symlinks(tmp_path: Path) -> None:
     unsafe = tmp_path / "unsafe"
     unsafe.mkdir(mode=0o755)
@@ -93,14 +94,15 @@ def test_token_store_roundtrip_is_private_atomic_and_account_scoped(tmp_path: Pa
         store.save_locked("account-42", record)
         assert store.load_locked("account-42") == record
         token_path = state_dir / "tokens" / "account-42.json"
-        assert stat.S_IMODE(token_path.stat().st_mode) == 0o600
-        assert stat.S_IMODE((state_dir / "tokens").stat().st_mode) == 0o700
+        assert_private_file(token_path)
+        assert_private_directory(state_dir / "tokens")
         store.delete_locked("account-42")
         assert store.load_locked("account-42") is None
     finally:
         store.release_lock(fd)
 
 
+@posix_only
 def test_token_store_rejects_symlink_and_world_readable_token(tmp_path: Path) -> None:
     state_dir = tmp_path / "state"
     store = SecureTokenStore(state_dir)

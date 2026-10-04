@@ -131,8 +131,9 @@ def test_main_reports_invalid_configuration_without_traceback(
     expected: str,
 ) -> None:
     _clear_kwork_environment(monkeypatch)
-    # The default state directory lives under HOME; never read the real one.
+    # The default state directory lives in the home directory; never read the real one.
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     for name, value in env.items():
         monkeypatch.setenv(name, value)

@@ -387,7 +387,7 @@ async def test_in_memory_handshake_tools_schemas_annotations_and_results(
             assert negotiated.protocol_version == protocol_version
             assert negotiated.server_info is not None
             assert negotiated.server_info.name == "kwork"
-            assert negotiated.server_info.version == __version__ == "1.5.2"
+            assert negotiated.server_info.version == __version__ == "1.6.0rc1"
             assert negotiated.instructions == server_instructions("auto")
             assert negotiated.server_capabilities is not None
             assert negotiated.server_capabilities.tools is not None

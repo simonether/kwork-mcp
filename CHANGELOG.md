@@ -5,6 +5,39 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-04
+
+### Added
+
+- Поддержка Windows 10 и 11 без WSL. Раньше `uvx kwork-mcp` на Windows падал при
+  импорте. Состояние по умолчанию хранится в домашнем каталоге, как на macOS и
+  Linux: `%USERPROFILE%\.local\state\kwork-mcp`. Права `0700`/`0600` на Windows
+  ничего не значат, поэтому вместо них проверяются владелец и DACL: каталоги
+  состояния создаются с доступом только для вашей учётной записи и SYSTEM, а файлы
+  состояния проверяются по владельцу и DACL перед каждым использованием. Токен
+  зашифрован DPAPI для текущего пользователя Windows и привязан к аккаунту: другой
+  пользователь его не прочитает, а файл, скопированный под имя другого аккаунта, не
+  откроется.
+  Межпроцессные блокировки на Windows идут через `msvcrt`. Свой `KWORK_STATE_DIR`
+  вне профиля принимается, только если другие пользователи не могут переименовать
+  каталоги над ним. На macOS и Linux поведение не изменилось.
+- `login` на Windows предупреждает, если запущен от имени администратора: это может
+  быть другая учётная запись, и сервер в агенте не увидит вход. Если токен не
+  расшифровывается (сброс пароля Windows, перенос профиля), сервер отвечает
+  `auth_expired` и просит выполнить login заново.
+- `kwork-mcp login` подключает Claude Desktop и Cursor сам: если они установлены, он
+  спрашивает и дописывает сервер в их конфиг (на Windows и в версию Claude из Microsoft
+  Store), не трогая остальные серверы и сохраняя прежний файл как `.bak`. Конфиг, который
+  не разбирается как обычный JSON, не меняется, а другой сервер с тем же именем
+  заменяется только после отдельного вопроса. Править JSON руками больше не нужно.
+- `kwork-mcp login` на Windows печатает команды с кавычками для PowerShell и cmd,
+  путь к конфигу Cursor (`%USERPROFILE%\.cursor\mcp.json`) и подсказку открыть
+  конфиг Claude Desktop через Settings → Developer → Edit Config. Вывод в pipe или
+  файл и логи сервера на Windows идут в UTF-8, а не в кодировке ANSI, поэтому
+  русский текст не ломает команду и читается в логах клиента.
+- CI проверяет типы Windows-веток (`mypy --platform win32`) и прогоняет тесты и
+  установку собранного пакета на Windows.
+
 ### Fixed
 
 - Описание `KWORK_WRITES` в `server.json` для MCP Registry больше не упоминает окно
@@ -313,7 +346,8 @@
 - Legacy `KWORK_TOKEN_FILE`, implicit `.env` loading and in-process-only limiter.
 - Experimental MCP Tasks and out-of-scope pipeline/business integrations.
 
-[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/simonether/kwork-mcp/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.6.0
 [1.5.2]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.2
 [1.5.1]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.1
 [1.5.0]: https://github.com/simonether/kwork-mcp/releases/tag/v1.5.0

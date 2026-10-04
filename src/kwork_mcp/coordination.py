@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import fcntl
 import hashlib
 import hmac
 import json
@@ -22,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
+from kwork_mcp import private_fs
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.errors import AmbiguousWriteError, ContractDriftError, GatewayError
 from kwork_mcp.models import ErrorCode, ErrorInfo, WriteAction, WriteState
@@ -118,15 +118,16 @@ class CoordinationStore:
                 pass
             else:
                 try:
-                    os.fchmod(fd, 0o600)
+                    private_fs.restrict_file(fd)
                 finally:
                     os.close(fd)
         info = self._path.lstat()
-        if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        if private_fs.is_link(info) or not stat.S_ISREG(info.st_mode):
             raise GatewayError(ErrorCode.VALIDATION, diagnostic="coordination_db_not_regular")
-        if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
+        problem = private_fs.file_problem(info, path=self._path)
+        if problem == "wrong_owner":
             raise GatewayError(ErrorCode.VALIDATION, diagnostic="coordination_db_wrong_owner")
-        if stat.S_IMODE(info.st_mode) != 0o600:
+        if problem is not None:
             raise GatewayError(ErrorCode.VALIDATION, diagnostic="coordination_db_permissions")
 
         with closing(self._connect()) as conn:
@@ -298,15 +299,14 @@ class CoordinationStore:
                         str(prepared_row["write_id"]),
                     ),
                 )
-        os.chmod(self._path, 0o600)
+        private_fs.restrict_path(self._path)
 
     def _connect(self) -> sqlite3.Connection:
         info = self._path.lstat()
         if (
-            stat.S_ISLNK(info.st_mode)
+            private_fs.is_link(info)
             or not stat.S_ISREG(info.st_mode)
-            or stat.S_IMODE(info.st_mode) != 0o600
-            or (hasattr(os, "geteuid") and info.st_uid != os.geteuid())
+            or private_fs.file_problem(info, path=self._path) is not None
         ):
             raise GatewayError(
                 ErrorCode.VALIDATION,
@@ -337,20 +337,21 @@ class CoordinationStore:
         fd = -1
         try:
             fd = os.open(path, flags, 0o600)
-            os.fchmod(fd, 0o600)
+            private_fs.restrict_file(fd)
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode):
                 raise GatewayError(
                     ErrorCode.VALIDATION,
                     diagnostic="writer_lock_not_regular",
                 )
-            if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
+            problem = private_fs.file_problem(info, fd=fd)
+            if problem is not None:
                 raise GatewayError(
                     ErrorCode.VALIDATION,
-                    diagnostic="writer_lock_wrong_owner",
+                    diagnostic=f"writer_lock_{problem}",
                 )
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                private_fs.try_lock(fd)
             except BlockingIOError as exc:
                 raise GatewayError(
                     ErrorCode.WRITE_IN_PROGRESS,
@@ -368,7 +369,7 @@ class CoordinationStore:
     @staticmethod
     def _release_writer_lock(fd: int) -> None:
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            private_fs.unlock(fd)
         finally:
             os.close(fd)
 

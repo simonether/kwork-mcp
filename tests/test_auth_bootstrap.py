@@ -4,7 +4,6 @@ import asyncio
 import io
 import json
 import os
-import stat
 import threading
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,7 @@ from pydantic import ValidationError
 
 import kwork_mcp.bootstrap as bootstrap_module
 import kwork_mcp.security as security_module
+from kwork_mcp import private_fs
 from kwork_mcp.bootstrap import bootstrap_account, run_bootstrap_cli
 from kwork_mcp.config import KworkConfig, secret_server_environment_present
 from kwork_mcp.coordination import CoordinationStore
@@ -28,6 +28,7 @@ from kwork_mcp.security import (
 )
 from kwork_mcp.session import KworkSessionManager
 from kwork_mcp.version import __version__
+from tests.platforms import assert_private_file, posix_only
 
 
 class AuthClient:
@@ -344,17 +345,15 @@ async def test_scope_record_mismatch_is_rejected_before_network(tmp_path: Path) 
     config = credentialless_config(tmp_path / "state")
     store = SecureTokenStore(config.state_dir)
     token_path = config.state_dir / "tokens" / "account-42.json"
-    token_path.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "user_id": 99,
-                "username": "wrong",
-                "token": "wrong-token",
-                "saved_at": "2026-07-27T00:00:00+00:00",
-            }
-        )
-    )
+    payload = {
+        "version": 1,
+        "user_id": 99,
+        "username": "wrong",
+        "token": "wrong-token",
+        "saved_at": "2026-07-27T00:00:00+00:00",
+    }
+    sealed = private_fs.seal(json.dumps(payload).encode(), purpose=security_module._token_seal_purpose("account-42"))
+    token_path.write_bytes(sealed)
     os.chmod(token_path, 0o600)
     factory_calls = 0
 
@@ -493,7 +492,7 @@ async def test_bootstrap_fresh_login_atomically_replaces_only_after_identity_che
     assert saved.user_id == 42
     assert saved.username == "verified"
     assert saved.token == "new-token"
-    assert stat.S_IMODE((config.state_dir / "tokens" / "account-42.json").stat().st_mode) == 0o600
+    assert_private_file(config.state_dir / "tokens" / "account-42.json")
 
 
 @pytest.mark.asyncio
@@ -824,6 +823,7 @@ async def test_bootstrap_cli_uses_tty_only_and_ignores_inherited_secrets(
     assert stored.proxy_url is None
 
 
+@posix_only
 @pytest.mark.asyncio
 async def test_bootstrap_cli_validates_and_imports_legacy_token_explicitly(
     tmp_path: Path,
@@ -881,6 +881,7 @@ async def test_bootstrap_cli_validates_and_imports_legacy_token_explicitly(
     assert stored.proxy_url == "socks5://proxy-user:proxy-pass@proxy.example:1080"
 
 
+@posix_only
 @pytest.mark.asyncio
 async def test_insecure_legacy_import_fails_before_network_and_preserves_store(
     tmp_path: Path,
@@ -959,7 +960,7 @@ async def test_bootstrap_cli_rejects_non_tty_and_unknown_argv_without_reflection
     [
         (["--help"], "kwork-mcp-bootstrap"),
         (["-h"], "kwork-mcp-bootstrap"),
-        (["--version"], "1.5.2"),
+        (["--version"], "1.6.0rc1"),
     ],
 )
 async def test_bootstrap_help_and_version_need_no_tty_or_configuration(
@@ -1560,17 +1561,11 @@ async def test_post_replace_unknown_survives_caller_cancel_during_close(
     store = SecureTokenStore(config.state_dir)
     old = TokenRecord.create(user_id=42, username="old", token="old-token")
     save_record(store, old)
-    real_fsync = os.fsync
-    fsync_calls = 0
 
-    def fail_post_replace_directory_fsync(fd: int) -> None:
-        nonlocal fsync_calls
-        fsync_calls += 1
-        if fsync_calls == 2:
-            raise OSError("synthetic post-replace durability failure")
-        real_fsync(fd)
+    def fail_post_replace_directory_fsync(_directory: Path) -> None:
+        raise OSError("synthetic post-replace durability failure")
 
-    monkeypatch.setattr(security_module.os, "fsync", fail_post_replace_directory_fsync)
+    monkeypatch.setattr(security_module.private_fs, "fsync_directory", fail_post_replace_directory_fsync)
     close_entered = asyncio.Event()
     close_release = asyncio.Event()
     client = BlockingCloseAuthClient(
@@ -1627,17 +1622,11 @@ async def test_post_replace_primary_survives_release_error_and_unlocks(
         config.state_dir,
         protected_detail=protected_detail,
     )
-    real_fsync = os.fsync
-    fsync_calls = 0
 
-    def fail_post_replace_directory_fsync(fd: int) -> None:
-        nonlocal fsync_calls
-        fsync_calls += 1
-        if fsync_calls == 2:
-            raise OSError("synthetic post-replace durability failure")
-        real_fsync(fd)
+    def fail_post_replace_directory_fsync(_directory: Path) -> None:
+        raise OSError("synthetic post-replace durability failure")
 
-    monkeypatch.setattr(security_module.os, "fsync", fail_post_replace_directory_fsync)
+    monkeypatch.setattr(security_module.private_fs, "fsync_directory", fail_post_replace_directory_fsync)
     client = AuthClient(
         Actor(id=42, username="new"),
         fresh_token="new-token",
@@ -1897,17 +1886,11 @@ def test_token_replace_post_commit_failure_is_typed_as_ambiguous(
         username="new",
         token="new-token",
     )
-    real_fsync = os.fsync
-    fsync_calls = 0
 
-    def fail_directory_fsync(fd: int) -> None:
-        nonlocal fsync_calls
-        fsync_calls += 1
-        if fsync_calls == 2:
-            raise OSError("synthetic post-replace failure")
-        real_fsync(fd)
+    def fail_directory_fsync(_directory: Path) -> None:
+        raise OSError("synthetic post-replace failure")
 
-    monkeypatch.setattr(security_module.os, "fsync", fail_directory_fsync)
+    monkeypatch.setattr(security_module.private_fs, "fsync_directory", fail_directory_fsync)
     fd = store.acquire_lock("account-42")
     try:
         with pytest.raises(GatewayError) as caught:
@@ -1916,6 +1899,36 @@ def test_token_replace_post_commit_failure_is_typed_as_ambiguous(
         store.release_lock(fd)
 
     assert caught.value.code is ErrorCode.CREDENTIAL_UPDATE_UNKNOWN
+    assert caught.value.reconciliation_required is True
+    assert load_record(store) == replacement
+
+
+def test_token_replace_failing_its_final_check_is_typed_as_ambiguous(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # On Windows the re-check after replace (owner and DACL) is the only step
+    # that can fail once the new record is visible.
+    store = SecureTokenStore(tmp_path / "state")
+    save_record(store, TokenRecord.create(user_id=42, username="old", token="old-token"))
+    replacement = TokenRecord.create(user_id=42, username="new", token="new-token")
+    real_validate = security_module._validate_private_file
+
+    def reject_after_replace(path: Path, *, allow_missing: bool = True) -> os.stat_result | None:
+        if not allow_missing:
+            raise GatewayError(ErrorCode.VALIDATION, diagnostic="private_file_acl_not_private")
+        return real_validate(path, allow_missing=allow_missing)
+
+    monkeypatch.setattr(security_module, "_validate_private_file", reject_after_replace)
+    fd = store.acquire_lock("account-42")
+    try:
+        with pytest.raises(GatewayError) as caught:
+            store.save_locked("account-42", replacement)
+    finally:
+        store.release_lock(fd)
+
+    assert caught.value.code is ErrorCode.CREDENTIAL_UPDATE_UNKNOWN
+    assert caught.value.diagnostic == "token_replace_commit_durability_unknown"
     assert caught.value.reconciliation_required is True
     assert load_record(store) == replacement
 
@@ -1932,9 +1945,9 @@ def test_read_private_secret_file_accepts_one_terminal_newline(tmp_path: Path) -
 @pytest.mark.parametrize(
     "kind",
     [
-        "symlink",
+        pytest.param("symlink", marks=posix_only),
         "directory",
-        "wrong_mode",
+        pytest.param("wrong_mode", marks=posix_only),
         "oversize",
         "invalid_utf8",
         "multiline",
@@ -1950,31 +1963,31 @@ def test_read_private_secret_file_rejects_unsafe_sources(
     path = tmp_path / "legacy-token"
     if kind == "symlink":
         target = tmp_path / "target"
-        target.write_text("token")
+        target.write_text("token", encoding="utf-8")
         os.chmod(target, 0o600)
         path.symlink_to(target)
     elif kind == "directory":
         path.mkdir(mode=0o700)
     elif kind == "wrong_mode":
-        path.write_text("token")
+        path.write_text("token", encoding="utf-8")
         os.chmod(path, 0o640)
     elif kind == "oversize":
-        path.write_text("x" * 4097)
+        path.write_text("x" * 4097, encoding="utf-8")
         os.chmod(path, 0o600)
     elif kind == "invalid_utf8":
         path.write_bytes(b"\xff\xfe")
         os.chmod(path, 0o600)
     elif kind == "multiple_newlines":
-        path.write_text("token\n\n")
+        path.write_text("token\n\n", encoding="utf-8")
         os.chmod(path, 0o600)
     elif kind == "leading_tab":
-        path.write_text("\ttoken\n")
+        path.write_text("\ttoken\n", encoding="utf-8")
         os.chmod(path, 0o600)
     elif kind == "bidi_control":
-        path.write_text("token\u202e")
+        path.write_text("token\u202e", encoding="utf-8")
         os.chmod(path, 0o600)
     else:
-        path.write_text("first\nsecond\n")
+        path.write_text("first\nsecond\n", encoding="utf-8")
         os.chmod(path, 0o600)
 
     with pytest.raises(GatewayError) as caught:
@@ -1982,6 +1995,7 @@ def test_read_private_secret_file_rejects_unsafe_sources(
     assert caught.value.code is ErrorCode.VALIDATION
 
 
+@posix_only
 def test_read_private_secret_file_rejects_wrong_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

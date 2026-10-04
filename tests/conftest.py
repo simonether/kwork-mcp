@@ -50,3 +50,10 @@ def coordinator(config_factory: Callable[..., KworkConfig]) -> CoordinationStore
 
 def actor(user_id: int = 42, username: str = "fixture-user") -> Actor:
     return Actor(id=user_id, username=username)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_client_configs(monkeypatch: pytest.MonkeyPatch) -> None:
+    # login offers to edit Claude Desktop and Cursor configs; no test may find
+    # the real ones on the machine that runs the suite.
+    monkeypatch.setattr("kwork_mcp.clients.find_clients", lambda: [])

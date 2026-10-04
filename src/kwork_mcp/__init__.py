@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import sys
 from collections.abc import Sequence
 
@@ -9,7 +10,23 @@ from kwork_mcp.version import __version__
 __all__ = ["__version__", "main"]
 
 
+def use_utf8_streams() -> None:
+    """Write stdout and stderr as UTF-8.
+
+    On Windows Python encodes redirected output (a pipe, a file, Git Bash) in
+    the ANSI code page, which may lack Cyrillic and is not what MCP clients
+    read. The console itself is UTF-8 already. The MCP channel wraps the
+    stdout buffer on its own and is not affected.
+    """
+
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def main(argv: Sequence[str] | None = None) -> None:
+    if sys.platform == "win32":
+        use_utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     if args:
         # Arguments select the human terminal commands (login, pending-writes,

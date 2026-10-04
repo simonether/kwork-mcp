@@ -37,6 +37,58 @@ non-sticky `0777/child-0700` намеренно неприемлем.
 компрометация root/current OS user находятся вне гарантии. Для таких окружений
 нужен отдельный private local state volume и операционная проверка ACL/mount.
 
+### Windows
+
+Mode bits на Windows не ограничивают доступ, а directory нельзя открыть как FD,
+поэтому POSIX walk заменён проверкой owner и DACL (`private_fs`, Win32 calls в
+`windows.py`). Trusted principals те же, что у OpenSSH for Windows для private
+keys: текущий user, SYSTEM и Administrators (они и так могут забрать любой файл).
+
+- Каждый недостающий компонент пути создаётся `CreateDirectoryW` сразу с protected
+  DACL `D:P(A;OICI;FA;;;<user>)(A;OICI;FA;;;SY)`, поэтому каталог ни на миг не
+  получает унаследованный, возможно общий, DACL родителя.
+- Final directory не может быть symlink или junction (name-surrogate reparse
+  point). Его owner обязан быть trusted principal, а каждая allow entry DACL — для
+  trusted principal или OWNER RIGHTS (`S-1-3-4`, его даёт `os.mkdir(path, 0o700)` в
+  Python 3.12.4+; owner уже проверен). Inherit-only entries тоже учитываются: они
+  достались бы каждому новому файлу. Исключение — CREATOR OWNER, который
+  превращается в создателя файла. Deny entries доступ не расширяют. Отсутствующий
+  DACL означает полный доступ для всех и отклоняется.
+- Token и lock files проверяются по owner и DACL через открытый handle
+  (`GetSecurityInfo`); token, кроме того, сверяется с файлом, прошедшим lstat (тот же
+  volume и file ID). `coordination.sqlite3`, как и на POSIX, проверяется по пути
+  перед каждым соединением.
+- Каталоги выше state directory внутри профиля пользователя и над ним (`C:\`,
+  `C:\Users`) не проверяются: по умолчанию другие пользователи не могут их
+  переименовать или сменить им права. Для пути вне профиля каждый каталог выше, включая
+  корень диска, должен принадлежать user, SYSTEM, Administrators или
+  TrustedInstaller, и никто другой не может иметь на нём DELETE, WRITE_DAC,
+  WRITE_OWNER, FILE_DELETE_CHILD или GENERIC_ALL (DELETE на корне диска безвреден).
+  Иначе: `state_directory_untrusted_ancestor_owner` или
+  `state_directory_untrusted_writable_ancestor`. Это аналог POSIX-запрета
+  shared-writable ancestors: кто может переименовать родителя, тот может подменить
+  ledger между проверкой и открытием.
+- Token record шифруется `CryptProtectData` текущего Windows user с entropy
+  `kwork-mcp token <scope>`. Другой user не расшифрует record и не подложит свой,
+  а файл, скопированный под имя другого аккаунта, не откроется. Record, который
+  DPAPI не открывает (другой user, сброс пароля Windows, перенос профиля), даёт
+  `auth_expired` с подсказкой выполнить login: новый вход перезаписывает его без
+  расшифровки. Ledger и lock files не шифруются: их защищает DACL.
+- `login` в окне администратора предупреждает: повышение прав может означать другую
+  учётную запись Windows (другой administrator или скрытая учётная запись
+  Administrator Protection), и токен попал бы в её профиль под её ключ DPAPI.
+- Межпроцессные locks — `msvcrt.locking` на первом байте lock file; Windows снимает
+  их при закрытии handle или завершении процесса. Directory `fsync` недоступен,
+  поэтому token record заменяется `MoveFileExW` с `MOVEFILE_WRITE_THROUGH`. Rename и
+  unlink до секунды повторяются при sharing violation (антивирус или индексатор
+  держат свежий файл); remote writes это не затрагивает.
+- UNC, device (`\\?\`, `\\.\`) и drive-relative paths, alternate data streams,
+  reserved device names (`NUL`, `COM1`) и имена с точкой или пробелом в конце
+  отклоняются как `state_directory_path_invalid`.
+
+Вне гарантии на Windows: компрометация текущего user или administrator, сетевые
+диски и FAT/exFAT (там нет DACL, такой state directory отклоняется).
+
 ## Credentials и account identity
 
 - `.env` из cwd никогда не загружается.
@@ -67,9 +119,12 @@ non-sticky `0777/child-0700` намеренно неприемлем.
   validation.
 - Credential record содержит подтверждённые `user_id`/`username`, token и optional
   proxy URL. Его dataclass repr скрывает credential fields.
-- Token и lock открываются с `O_NOFOLLOW`, проверкой regular file, owner и mode.
+- Token и lock открываются с `O_NOFOLLOW`, проверкой regular file, owner и mode. На
+  Windows `O_NOFOLLOW` нет: symlink на чужой файл не пройдёт проверку owner и DACL
+  через handle.
 - Запись record использует private tempfile, `fsync`, atomic `os.replace` и directory
-  `fsync` под межпроцессным `flock`.
+  `fsync` под межпроцессным `flock` (на Windows `msvcrt.locking`, без directory
+  `fsync`).
 - До replace сбой сохраняет старый record побайтно; после replace сбой durability
   классифицируется `credential_update_unknown`, потому что новый record уже может
   быть видим.
@@ -81,7 +136,8 @@ non-sticky `0777/child-0700` намеренно неприемлем.
 Bootstrap сначала берёт account writer lock, затем credential flock. Он не может
 ротировать token/proxy посреди multi-step write; concurrent bootstrap получает
 typed `write_in_progress`. Legacy `~/.kwork_token` читается только после явного
-согласия и проверок regular-file/current-owner/exact-0600/no-symlink/inode
+согласия и проверок regular-file/current-owner/exact-0600 (на Windows owner и
+DACL)/no-symlink/inode
 stability/size/UTF-8/single-line. Normal startup его никогда не импортирует.
 Закрытие bootstrap client имеет абсолютный пятисекундный deadline и bounded
 cancel-drain. После deadline account/token locks освобождаются; если store уже
