@@ -270,7 +270,7 @@
             <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
             <pre><code class="sh">uvx kwork-mcp@1.6.0 login</code></pre>
           </figure>
-          <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code> (на&nbsp;Windows <code>%USERPROFILE%\.local\state\kwork-mcp</code>). В&nbsp;конце она напечатает готовые команды подключения, а&nbsp;для Claude Desktop&nbsp;— блок с&nbsp;полным путём к&nbsp;<code>uvx</code>.</p>
+          <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code> (на&nbsp;Windows <code>%USERPROFILE%\.local\state\kwork-mcp</code>). Если у&nbsp;вас есть Claude Desktop или Cursor, она предложит подключить kwork-mcp к&nbsp;ним сама, а&nbsp;для Claude Code и&nbsp;Codex напечатает готовые команды.</p>
         </li>
         <li>
           <h3>Подключите агента</h3>
@@ -297,7 +297,8 @@
             </div>
             <div role="tabpanel" id="panel-desktop" tabindex="0">
               <h4 class="tab-title">Claude Desktop</h4>
-              <p>Settings → Developer → Edit Config, файл <code>claude_desktop_config.json</code>.</p>
+              <p><code>login</code> подключит Claude Desktop сам: ответьте «да» на&nbsp;его вопрос и&nbsp;перезапустите приложение. Остальные серверы в&nbsp;конфиге не&nbsp;меняются.</p>
+              <p>Вручную: Settings → Developer → Edit Config, файл <code>claude_desktop_config.json</code>.</p>
               <figure class="code" data-copy>
                 <figcaption><span>claude_desktop_config.json</span><span data-copy-slot></span></figcaption>
 <pre><code>{

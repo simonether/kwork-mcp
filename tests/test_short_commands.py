@@ -14,7 +14,7 @@ from fastmcp import Client
 from kwork.schema.actor import Actor
 
 import kwork_mcp
-from kwork_mcp.bootstrap import _connection_instructions, run_bootstrap_cli
+from kwork_mcp.bootstrap import _account_connected, _connection_instructions, run_bootstrap_cli
 from kwork_mcp.config import (
     AccountSelectionError,
     KworkConfig,
@@ -356,7 +356,7 @@ def test_login_prints_the_shortest_commands_for_the_default_setup(
 
     lines = _instructions().splitlines()
 
-    assert lines[0] == "Аккаунт found-user (user_id 42) подключён."
+    assert _account_connected(Actor(id=42, username="found-user")) == "Аккаунт found-user (user_id 42) подключён.\n"
     assert f"  claude mcp add kwork --scope user -- uvx kwork-mcp@{__version__}" in lines
     assert f"  codex mcp add kwork -- uvx kwork-mcp@{__version__}" in lines
     assert any("https://simonether.github.io/kwork-mcp/" in line for line in lines)

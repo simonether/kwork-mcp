@@ -56,10 +56,13 @@ uvx kwork-mcp@1.6.0 login
 ```
 
 После подтверждения токен сохраняется в защищённое хранилище на вашем компьютере:
-`~/.local/state/kwork-mcp`, на Windows `%USERPROFILE%\.local\state\kwork-mcp`. Логин и пароль
-нигде не сохраняются. В конце команда
-напечатает готовые команды подключения для Claude Code и Codex и блок для Claude
-Desktop и Cursor.
+`~/.local/state/kwork-mcp`, на Windows `%USERPROFILE%\.local\state\kwork-mcp`. Логин и
+пароль нигде не сохраняются.
+
+Если на компьютере есть Claude Desktop или Cursor, команда спросит, подключить ли к ним
+kwork-mcp, и сама допишет сервер в их конфиг. Остальные серверы в конфиге не меняются,
+прежняя версия файла остаётся рядом как `.bak`. После этого перезапустите клиент. Для
+Claude Code и Codex команда напечатает готовые команды подключения.
 
 ### 2. Подключите агента
 
@@ -77,8 +80,10 @@ codex mcp add kwork -- uvx kwork-mcp@1.6.0
 
 **Cursor:** [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=kwork&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS42LjAiXX0%3D)
 
+**Claude Desktop:** `login` подключает его сам, после этого перезапустите приложение.
+
 <details>
-<summary><b>Claude Desktop и другие клиенты</b></summary>
+<summary><b>Подключить вручную: Claude Desktop и другие клиенты</b></summary>
 
 Claude Desktop: Settings → Developer → Edit Config, файл `claude_desktop_config.json`.
 Cursor без кнопки: `~/.cursor/mcp.json` (на Windows `%USERPROFILE%\.cursor\mcp.json`)

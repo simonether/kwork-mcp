@@ -21,7 +21,8 @@ durable `prepare → commit → reconcile` write protocol) on FastMCP 4 / MCP SD
 ```
 src/kwork_mcp/
   __init__.py       main(): bare command = stdio server (rejects secret env, no banner); args → terminal CLI
-  bootstrap.py      terminal CLI: login (TTY auth → store, prints client commands), status, logout, write resolution
+  bootstrap.py      terminal CLI: login (TTY auth → store, connects clients, prints commands), status, logout, write resolution
+  clients.py        finds Claude Desktop / Cursor configs (incl. the MSIX Claude) and adds the server with a .bak
   config.py         KworkConfig (pydantic-settings, KWORK_ prefix), bound-account selection, proxy validation
   server.py         create_server(): FastMCP app, lifespan, SERVER_INSTRUCTIONS, unknown-tool guard
   session.py        KworkSessionManager: lazy auth, account identity checks, call_read / call_write_step

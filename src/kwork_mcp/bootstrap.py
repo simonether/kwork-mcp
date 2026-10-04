@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 import warnings
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,7 +21,7 @@ from typing import Any, Self, TextIO, cast
 from kwork.schema.actor import Actor
 from pydantic import SecretStr, ValidationError, model_validator
 
-from kwork_mcp import private_fs
+from kwork_mcp import clients, private_fs
 from kwork_mcp.config import (
     AccountSelectionError,
     KworkConfig,
@@ -64,8 +64,9 @@ MCP-клиент. Команды для терминала:
 login спрашивает логин, пароль, последние 4 цифры телефона и прокси скрытым
 вводом в настоящем терминале; через аргументы и .env они не принимаются. Если
 KWORK_EXPECTED_USER_ID не задан, login покажет найденный аккаунт и попросит
-подтвердить привязку; если задан, аккаунт обязан с ним совпасть. В конце login
-печатает команды, которые подключают сервер к Claude Code и Codex.
+подтвердить привязку; если задан, аккаунт обязан с ним совпасть. Затем login
+предлагает подключить сервер к найденным Claude Desktop и Cursor (дописывает их
+конфиг, прежний сохраняет как .bak) и печатает команды для Claude Code и Codex.
 
 Если вход выполнен для одного аккаунта, сервер и команды выше работают с ним
 сами. Если аккаунтов несколько, укажите нужный в KWORK_EXPECTED_USER_ID или
@@ -75,8 +76,8 @@ KWORK_EXPECTED_USER_ID не задан, login покажет найденный 
 общие, поэтому повторный вход при смене сайта не нужен.
 
 Если существует legacy ~/.kwork_token, доступный только вам (на macOS и Linux:
-owner=current user и mode 0600), login предложит проверить и импортировать его. Сервер legacy-файл никогда не
-импортирует.
+owner=current user и mode 0600), login предложит проверить и импортировать его.
+Сервер legacy-файл никогда не импортирует.
 
 Отправка с неизвестным исходом (submission_unknown) блокирует новые отправки
 аккаунта, пока её не сверит reconcile_write. Если сверка не приходит к выводу,
@@ -657,17 +658,29 @@ def _command_line(args: list[str]) -> str:
     return line
 
 
-def _desktop_config_files() -> str:
+def _client_config_locations() -> dict[str, str]:
     if sys.platform == "win32":
-        # A packaged (MSIX) Claude Desktop keeps the file in its own AppData copy.
-        files = r"claude_desktop_config.json (Settings → Developer → Edit Config) или %USERPROFILE%\.cursor\mcp.json"
+        cursor = r"%USERPROFILE%\.cursor\mcp.json"
     else:
-        files = "claude_desktop_config.json или ~/.cursor/mcp.json"
-    return files
+        cursor = "~/.cursor/mcp.json"
+    # Settings → Developer → Edit Config finds the file, wherever this build keeps it.
+    return {"Claude Desktop": "claude_desktop_config.json (Settings → Developer → Edit Config)", "Cursor": cursor}
 
 
-def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_retained: bool) -> str:
-    """What to run next, with every setting the server needs to find this account."""
+def _restart_hint(client: str) -> str:
+    if client == "Cursor":
+        hint = "Перезапустите Cursor, если он открыт."
+    elif sys.platform == "win32":
+        hint = "Перезапустите Claude Desktop: закройте его через значок в трее и откройте снова."
+    elif sys.platform == "darwin":
+        hint = "Перезапустите Claude Desktop: Cmd+Q и откройте снова."
+    else:
+        hint = "Перезапустите Claude Desktop."
+    return hint
+
+
+def _server_environment(actor: Actor, config: KworkConfig) -> list[str]:
+    """Settings a client must pass for the server to find this account."""
 
     try:
         several_accounts = len(bound_account_ids(config.state_dir)) > 1
@@ -683,27 +696,102 @@ def _connection_instructions(actor: Actor, config: KworkConfig, *, legacy_file_r
     # the location it finds on its own is passed explicitly.
     if config.state_dir != client_default_state_dir():
         environment.append(f"KWORK_STATE_DIR={config.state_dir}")
-    name = "kwork" if config.site == "ru" else f"kwork-{config.site}"
+    return environment
+
+
+def _server_name(config: KworkConfig) -> str:
+    return "kwork" if config.site == "ru" else f"kwork-{config.site}"
+
+
+def _client_entry(actor: Actor, config: KworkConfig) -> dict[str, Any]:
+    # Claude Desktop and Cursor start servers without the shell PATH, so they
+    # get the absolute uvx path of the terminal that ran login.
+    entry: dict[str, Any] = {"command": shutil.which("uvx") or "uvx", "args": [f"kwork-mcp@{__version__}"]}
+    environment = _server_environment(actor, config)
+    if environment:
+        entry["env"] = dict(item.split("=", 1) for item in environment)
+    return entry
+
+
+def _connect_clients(
+    actor: Actor,
+    config: KworkConfig,
+    *,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> set[str]:
+    """Offer to add the server to each Claude Desktop or Cursor config found; return the clients set up."""
+
+    name = _server_name(config)
+    entry = _client_entry(actor, config)
+    connected: set[str] = set()
+    for client in clients.find_clients():
+        location = _terminal_safe(str(client.path))
+        try:
+            current = clients.existing_entry(client.path, name)
+        except clients.ClientConfigError:
+            stdout.write(
+                f"{client.name}: конфиг {location} не разобран как JSON и не изменён, добавьте блок ниже вручную.\n"
+            )
+            continue
+        if current == entry:
+            connected.add(client.name)
+            stdout.write(f"{client.name}: kwork-mcp уже подключён.\n")
+            continue
+        if current is not None and not clients.is_kwork_mcp_entry(current):
+            question = f"В {client.name} уже есть другой сервер «{name}». Заменить его на kwork-mcp? [y/N]: "
+        else:
+            question = f"Подключить kwork-mcp к {client.name}? [y/N]: "
+        if _visible_prompt(question, stdin=stdin, stderr=stderr).casefold() not in _CONFIRMATIONS:
+            continue
+        try:
+            result = clients.register_server(client.path, name, entry)
+        except (clients.ClientConfigError, OSError):
+            stdout.write(f"{client.name}: не удалось записать {location}, добавьте блок ниже вручную.\n")
+            continue
+        connected.add(client.name)
+        stdout.write(f"{client.name}: kwork-mcp подключён. {_restart_hint(client.name)}\n")
+        if result.backup is not None:
+            stdout.write(f"  Прежний конфиг сохранён в {_terminal_safe(str(result.backup))}\n")
+    return connected
+
+
+def _account_connected(actor: Actor) -> str:
+    return f"Аккаунт {_terminal_safe(str(actor.username))} (user_id {actor.id}) подключён.\n"
+
+
+def _connection_instructions(
+    actor: Actor,
+    config: KworkConfig,
+    *,
+    legacy_file_retained: bool,
+    connected: Collection[str] = (),
+) -> str:
+    """What to run next, with every setting the server needs to find this account."""
+
+    environment = _server_environment(actor, config)
+    name = _server_name(config)
     claude = ["claude", "mcp", "add", name, "--scope", "user"]
     codex = ["codex", "mcp", "add", name]
     for item in environment:
         claude += ["-e", item]
         codex += ["--env", item]
     server = ["--", "uvx", f"kwork-mcp@{__version__}"]
-    # Claude Desktop starts servers without the shell PATH, so it gets the
-    # absolute uvx path of the terminal that ran login.
-    desktop: dict[str, Any] = {"command": shutil.which("uvx") or "uvx", "args": [f"kwork-mcp@{__version__}"]}
-    if environment:
-        desktop["env"] = dict(item.split("=", 1) for item in environment)
     lines = [
-        f"Аккаунт {_terminal_safe(str(actor.username))} (user_id {actor.id}) подключён.",
         "",
-        "Добавьте kwork-mcp в агента. Claude Code:",
+        ("Другие агенты. Claude Code:" if connected else "Добавьте kwork-mcp в агента. Claude Code:"),
         "  " + _terminal_safe(_command_line(claude + server)),
         "Codex:",
         "  " + _terminal_safe(_command_line(codex + server)),
-        f'Claude Desktop и Cursor: в "mcpServers" файла {_desktop_config_files()}',
-        "  " + _terminal_safe(f'"{name}": ' + json.dumps(desktop, ensure_ascii=False)),
+    ]
+    locations = {client: where for client, where in _client_config_locations().items() if client not in connected}
+    if locations:
+        lines += [
+            f'{" и ".join(locations)}: в "mcpServers" файла {" или ".join(locations.values())}',
+            "  " + _terminal_safe(f'"{name}": ' + json.dumps(_client_entry(actor, config), ensure_ascii=False)),
+        ]
+    lines += [
         "",
         "Каждую отправку агент сначала покажет вам на подтверждение. Чтобы он отправлял сам, добавьте "
         "KWORK_WRITES=auto, для одного только чтения KWORK_WRITES=off.",
@@ -1009,7 +1097,9 @@ async def run_bootstrap_cli(
             token_store=store,
             client_factory=client_factory,
         )
-        stdout.write(_connection_instructions(actor, config, legacy_file_retained=used_legacy))
+        stdout.write(_account_connected(actor))
+        connected = _connect_clients(actor, config, stdin=stdin, stdout=stdout, stderr=stderr)
+        stdout.write(_connection_instructions(actor, config, legacy_file_retained=used_legacy, connected=connected))
         return 0
     except (EOFError, KeyboardInterrupt, getpass.GetPassWarning):
         stderr.write("Вход отменён: сохранённый токен не изменён.\n")
