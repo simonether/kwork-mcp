@@ -30,7 +30,7 @@ import kwork_mcp
 from kwork_mcp.bootstrap import run_bootstrap_cli
 from kwork_mcp.server import create_server
 
-assert kwork_mcp.__version__ == "1.6.0"
+assert kwork_mcp.__version__ == "1.6.0rc1"
 assert callable(run_bootstrap_cli)
 create_server()
 scripts = {
@@ -46,9 +46,9 @@ PY
 
 "${runner[@]}" kwork-mcp-bootstrap --help >/dev/null
 # Python on Windows ends printed lines with CRLF; the comparisons drop the CR.
-[[ "$("${runner[@]}" kwork-mcp-bootstrap --version | tr -d '\r')" == "1.6.0" ]]
+[[ "$("${runner[@]}" kwork-mcp-bootstrap --version | tr -d '\r')" == "1.6.0rc1" ]]
 "${runner[@]}" kwork-mcp --help >/dev/null
-[[ "$("${runner[@]}" kwork-mcp --version | tr -d '\r')" == "1.6.0" ]]
+[[ "$("${runner[@]}" kwork-mcp --version | tr -d '\r')" == "1.6.0rc1" ]]
 
 set +e
 "${runner[@]}" kwork-mcp login </dev/null >login.stdout 2>login.stderr
@@ -63,7 +63,7 @@ KWORK_STATE_DIR="$state_dir" "${runner[@]}" kwork-mcp status >status.stdout 2>st
 status_status="$?"
 set -e
 [[ "$status_status" -eq 2 ]]
-grep -q "kwork-mcp 1.6.0" status.stdout
+grep -q "kwork-mcp 1.6.0rc1" status.stdout
 [[ ! -e "${smoke_dir}/state" ]]
 
 # Directory inspections start the bare server with no account: it must list the

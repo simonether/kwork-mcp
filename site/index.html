@@ -57,7 +57,7 @@
       "image": "https://simonether.github.io/kwork-mcp/og.png",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS, Linux, Windows",
-      "softwareVersion": "1.6.0",
+      "softwareVersion": "1.6.0rc1",
       "softwareRequirements": "Python 3.12–3.14, uv",
       "programmingLanguage": "Python",
       "inLanguage": "ru",
@@ -84,7 +84,7 @@
         {"@type": "Question", "name": "Может ли агент откликнуться на проект без меня?", "acceptedAnswer": {"@type": "Answer", "text": "Только если вы сами это разрешили. По умолчанию агент показывает точный текст, цену и получателя и отправляет только после вашего «да». С KWORK_WRITES=auto он отправляет сам, с KWORK_WRITES=off только читает."}},
         {"@type": "Question", "name": "Что будет, если связь оборвётся при отправке?", "acceptedAnswer": {"@type": "Answer", "text": "Сервер не повторит запись сам и не угадает исход. Новые отправки для аккаунта ждут, пока агент не сверит результат с Kwork или вы не разберёте запись вручную командой kwork-mcp resolve-write."}},
         {"@type": "Question", "name": "Где хранятся логин и пароль?", "acceptedAnswer": {"@type": "Answer", "text": "Нигде. Их спрашивает только kwork-mcp login через скрытый ввод, а на диск сохраняется токен: на macOS и Linux в ~/.local/state/kwork-mcp с правами 0600, на Windows в %USERPROFILE%\\.local\\state\\kwork-mcp, зашифрованный DPAPI. На macOS и Linux токен не шифруется, поэтому включите шифрование диска."}},
-        {"@type": "Question", "name": "Как сменить аккаунт?", "acceptedAnswer": {"@type": "Answer", "text": "Выполните в терминале uvx kwork-mcp@1.6.0 logout, а затем login с другим аккаунтом. Команда status покажет, с каким аккаунтом и сайтом запустится сервер, без запросов к Kwork."}},
+        {"@type": "Question", "name": "Как сменить аккаунт?", "acceptedAnswer": {"@type": "Answer", "text": "Выполните в терминале uvx kwork-mcp@1.6.0rc1 logout, а затем login с другим аккаунтом. Команда status покажет, с каким аккаунтом и сайтом запустится сервер, без запросов к Kwork."}},
         {"@type": "Question", "name": "Какие клиенты поддерживаются?", "acceptedAnswer": {"@type": "Answer", "text": "Claude Code, Claude Desktop, Codex, Cursor и другие MCP-клиенты, которые умеют запускать локальный сервер через stdio."}},
         {"@type": "Question", "name": "Работает ли на Windows?", "acceptedAnswer": {"@type": "Answer", "text": "Да, на Windows 10 и 11 без WSL. uv ставится одной командой в PowerShell, дальше всё так же, как на macOS и Linux."}},
         {"@type": "Question", "name": "Сколько стоит?", "acceptedAnswer": {"@type": "Answer", "text": "Нисколько: kwork-mcp распространяется бесплатно под лицензией MIT."}}
@@ -136,10 +136,10 @@
         <div class="hero-actions">
           <a class="btn btn-primary" href="#start">Установить</a>
           <div class="cmd" data-copy>
-            <code class="sh">uvx kwork-mcp@1.6.0 login</code>
+            <code class="sh">uvx kwork-mcp@1.6.0rc1 login</code>
           </div>
         </div>
-        <p class="hero-facts">Бесплатно и&nbsp;с&nbsp;открытым кодом (MIT). macOS, Linux и&nbsp;Windows, Python 3.12–3.14. Версия 1.6.0 на&nbsp;<a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
+        <p class="hero-facts">Бесплатно и&nbsp;с&nbsp;открытым кодом (MIT). macOS, Linux и&nbsp;Windows, Python 3.12–3.14. Версия 1.6.0rc1 на&nbsp;<a href="https://pypi.org/project/kwork-mcp/">PyPI</a>.</p>
       </div>
       <picture class="hero-art">
         <source type="image/avif" srcset="img/hero-640.avif 640w, img/hero-1200.avif 1200w" sizes="(max-width: 900px) min(88vw, 440px), 560px">
@@ -268,7 +268,7 @@
           <p>Запустите в&nbsp;обычном терминале (на&nbsp;Windows в&nbsp;PowerShell):</p>
           <figure class="code" data-copy>
             <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-            <pre><code class="sh">uvx kwork-mcp@1.6.0 login</code></pre>
+            <pre><code class="sh">uvx kwork-mcp@1.6.0rc1 login</code></pre>
           </figure>
           <p>Команда скрыто спросит логин и&nbsp;пароль Kwork, покажет найденный аккаунт и&nbsp;после подтверждения сохранит токен в&nbsp;<code>~/.local/state/kwork-mcp</code> (на&nbsp;Windows <code>%USERPROFILE%\.local\state\kwork-mcp</code>). Если у&nbsp;вас есть Claude Desktop или Cursor, она предложит подключить kwork-mcp к&nbsp;ним сама, а&nbsp;для Claude Code и&nbsp;Codex напечатает готовые команды.</p>
         </li>
@@ -280,19 +280,19 @@
               <h4 class="tab-title">Claude Code</h4>
               <figure class="code" data-copy>
                 <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-<pre><code class="sh">claude mcp add kwork --scope user -- uvx kwork-mcp@1.6.0</code></pre>
+<pre><code class="sh">claude mcp add kwork --scope user -- uvx kwork-mcp@1.6.0rc1</code></pre>
               </figure>
             </div>
             <div role="tabpanel" id="panel-codex" tabindex="0">
               <h4 class="tab-title">Codex</h4>
               <figure class="code" data-copy>
                 <figcaption><span>терминал</span><span data-copy-slot></span></figcaption>
-<pre><code class="sh">codex mcp add kwork -- uvx kwork-mcp@1.6.0</code></pre>
+<pre><code class="sh">codex mcp add kwork -- uvx kwork-mcp@1.6.0rc1</code></pre>
               </figure>
             </div>
             <div role="tabpanel" id="panel-cursor" tabindex="0">
               <h4 class="tab-title">Cursor</h4>
-              <p><a class="btn btn-primary" href="https://cursor.com/install-mcp?name=kwork&amp;config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS42LjAiXX0%3D">Добавить в&nbsp;Cursor</a></p>
+              <p><a class="btn btn-primary" href="https://cursor.com/install-mcp?name=kwork&amp;config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS42LjByYzEiXX0%3D">Добавить в&nbsp;Cursor</a></p>
               <p>Кнопка откроет Cursor и&nbsp;предложит добавить сервер. Вручную: блок из&nbsp;вкладки «Claude Desktop» в&nbsp;<code>~/.cursor/mcp.json</code> (на&nbsp;Windows <code>%USERPROFILE%\.cursor\mcp.json</code>).</p>
             </div>
             <div role="tabpanel" id="panel-desktop" tabindex="0">
@@ -305,7 +305,7 @@
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["kwork-mcp@1.6.0"]
+      "args": ["kwork-mcp@1.6.0rc1"]
     }
   }
 }</code></pre>
@@ -317,7 +317,7 @@
         </li>
         <li>
           <h3>Проверьте</h3>
-          <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя. Без клиента то&nbsp;же видно в&nbsp;терминале: <code>uvx kwork-mcp@1.6.0 status</code>.</p>
+          <p>Перезапустите клиент и&nbsp;попросите агента: <q class="say">проверь статус аккаунта Kwork</q>. Он покажет ваш <code>user_id</code> и&nbsp;имя. Без клиента то&nbsp;же видно в&nbsp;терминале: <code>uvx kwork-mcp@1.6.0rc1 status</code>.</p>
           <p class="note">Каждую отправку агент сначала покажет вам на&nbsp;подтверждение. Чтобы он отправлял сам, добавьте в&nbsp;конфиг <code>KWORK_WRITES=auto</code>, для одного только чтения&nbsp;— <code>KWORK_WRITES=off</code> (в&nbsp;Claude Code: <code>-e KWORK_WRITES=off</code>). Подробности, решение проблем и&nbsp;ручная сверка отправок описаны в&nbsp;<a href="https://github.com/simonether/kwork-mcp#readme">README</a>.</p>
         </li>
       </ol>
@@ -417,7 +417,7 @@
         </details>
         <details>
           <summary>Как сменить аккаунт?</summary>
-          <div class="answer"><p>Выполните в&nbsp;терминале <code>uvx kwork-mcp@1.6.0 logout</code>, а&nbsp;затем <code>login</code> с&nbsp;другим аккаунтом. Команда <code>status</code> покажет, с&nbsp;каким аккаунтом и&nbsp;сайтом запустится сервер, без запросов к&nbsp;Kwork.</p></div>
+          <div class="answer"><p>Выполните в&nbsp;терминале <code>uvx kwork-mcp@1.6.0rc1 logout</code>, а&nbsp;затем <code>login</code> с&nbsp;другим аккаунтом. Команда <code>status</code> покажет, с&nbsp;каким аккаунтом и&nbsp;сайтом запустится сервер, без запросов к&nbsp;Kwork.</p></div>
         </details>
         <details>
           <summary>Какие клиенты поддерживаются?</summary>

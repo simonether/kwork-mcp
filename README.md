@@ -45,7 +45,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 В обычном терминале (на Windows в PowerShell или Windows Terminal):
 
 ```bash
-uvx kwork-mcp@1.6.0 login
+uvx kwork-mcp@1.6.0rc1 login
 ```
 
 Команда скрыто спросит логин и пароль Kwork, а также, по желанию, последние 4 цифры
@@ -69,16 +69,16 @@ Claude Code и Codex команда напечатает готовые кома
 **Claude Code:**
 
 ```bash
-claude mcp add kwork --scope user -- uvx kwork-mcp@1.6.0
+claude mcp add kwork --scope user -- uvx kwork-mcp@1.6.0rc1
 ```
 
 **Codex:**
 
 ```bash
-codex mcp add kwork -- uvx kwork-mcp@1.6.0
+codex mcp add kwork -- uvx kwork-mcp@1.6.0rc1
 ```
 
-**Cursor:** [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=kwork&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS42LjAiXX0%3D)
+**Cursor:** [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=kwork&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJrd29yay1tY3BAMS42LjByYzEiXX0%3D)
 
 **Claude Desktop:** `login` подключает его сам, после этого перезапустите приложение.
 
@@ -94,7 +94,7 @@ Cursor без кнопки: `~/.cursor/mcp.json` (на Windows `%USERPROFILE%\.c
   "mcpServers": {
     "kwork": {
       "command": "uvx",
-      "args": ["kwork-mcp@1.6.0"]
+      "args": ["kwork-mcp@1.6.0rc1"]
     }
   }
 }
@@ -116,9 +116,9 @@ JSON.
 Перезапустите клиент и попросите агента: «проверь статус аккаунта Kwork». Он
 вызовет `account_status` и покажет ваш `user_id` и имя.
 
-Без клиента то же видно в терминале: `uvx kwork-mcp@1.6.0 status` покажет, с каким
+Без клиента то же видно в терминале: `uvx kwork-mcp@1.6.0rc1 status` покажет, с каким
 аккаунтом и сайтом запустится сервер, не обращаясь к Kwork. Сменить аккаунт:
-`uvx kwork-mcp@1.6.0 logout`, затем снова `login`.
+`uvx kwork-mcp@1.6.0rc1 logout`, затем снова `login`.
 
 ## Отправка откликов и сообщений
 
@@ -142,7 +142,7 @@ Codex то же включает `default_tools_approval_mode = "writes"` в н�
 
 ```bash
 claude mcp remove kwork --scope user
-claude mcp add kwork --scope user -e KWORK_WRITES=auto -- uvx kwork-mcp@1.6.0
+claude mcp add kwork --scope user -e KWORK_WRITES=auto -- uvx kwork-mcp@1.6.0rc1
 ```
 
 В режиме `auto` от чужих команд в текстах проектов и сообщений защищает только
@@ -162,7 +162,7 @@ claude mcp add kwork --scope user -e KWORK_WRITES=auto -- uvx kwork-mcp@1.6.0
 `KWORK_SITE=com`. Например, для Claude Code вторым сервером рядом с kwork.ru:
 
 ```bash
-claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.6.0
+claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.6.0rc1
 ```
 
 Аккаунт и токен у kwork.ru и kwork.com общие, поэтому заново входить не нужно.
@@ -175,9 +175,9 @@ claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.6.0
 
 | Что видите | Что делать |
 |---|---|
-| `auth_required` или `auth_expired` | Входа нет или он истёк: выполните `uvx kwork-mcp@1.6.0 login` и перезапустите клиент |
-| `account_binding_required` | Вы входили в несколько аккаунтов: укажите нужный в `KWORK_EXPECTED_USER_ID` или удалите лишний вход командой `uvx kwork-mcp@1.6.0 logout <user_id>` |
-| Непонятно, какой аккаунт и сайт использует сервер | `uvx kwork-mcp@1.6.0 status` покажет это без запросов к Kwork |
+| `auth_required` или `auth_expired` | Входа нет или он истёк: выполните `uvx kwork-mcp@1.6.0rc1 login` и перезапустите клиент |
+| `account_binding_required` | Вы входили в несколько аккаунтов: укажите нужный в `KWORK_EXPECTED_USER_ID` или удалите лишний вход командой `uvx kwork-mcp@1.6.0rc1 logout <user_id>` |
+| Непонятно, какой аккаунт и сайт использует сервер | `uvx kwork-mcp@1.6.0rc1 status` покажет это без запросов к Kwork |
 | Сервер не стартует, «некорректная конфигурация: …» | Проверьте названные переменные `KWORK_*` в конфиге клиента |
 | «KWORK_ENABLE_WRITES удалена в 1.5.0» | Замените её на `KWORK_WRITES=off`, `confirm` или `auto` |
 | `write_disabled` | Сервер запущен с `KWORK_WRITES=off`, доступно только чтение |
@@ -189,9 +189,9 @@ claude mcp add kwork-com --scope user -e KWORK_SITE=com -- uvx kwork-mcp@1.6.0
 Ручная фиксация исхода запускается с теми же `KWORK_*` переменными, что у сервера:
 
 ```bash
-uvx kwork-mcp@1.6.0 pending-writes
-uvx kwork-mcp@1.6.0 resolve-write <write_id> succeeded   # операция на Kwork прошла
-uvx kwork-mcp@1.6.0 resolve-write <write_id> absent      # операции на Kwork нет
+uvx kwork-mcp@1.6.0rc1 pending-writes
+uvx kwork-mcp@1.6.0rc1 resolve-write <write_id> succeeded   # операция на Kwork прошла
+uvx kwork-mcp@1.6.0rc1 resolve-write <write_id> absent      # операции на Kwork нет
 ```
 
 ## Инструменты
