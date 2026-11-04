@@ -260,17 +260,29 @@ async def test_user_not_found_and_falsy_collection_shapes_are_fail_loud(
                 await gateway.get_dialog("fixture")
         assert dialog_drift.value.code is ErrorCode.CONTRACT_DRIFT
 
+    # Kwork sends an empty first page without paging (live: account with no dialogs).
+    for paging_shape in ({}, None):
+        dialogs_payload: dict[str, Any] = {"success": True, "response": []}
+        if paging_shape is not None:
+            dialogs_payload["paging"] = paging_shape
+        empty = await gateway_for(config_factory(), ScriptClient(dialogs=dialogs_payload)).list_dialogs()
+        assert empty.items == []
+        assert empty.page.total_pages == 0
+        assert empty.page.has_more is False
+
+    # Items without paging, or a later page without paging, still count as drift.
     for method_name, response in (
-        ("list_dialogs", {"dialogs": {"success": True, "response": [], "paging": {}}}),
-        ("get_dialog", {"inboxes": {"success": True, "response": [], "paging": {}}}),
+        ("list_dialogs", {"dialogs": {"success": True, "response": [{"username": "fixture"}]}}),
+        ("list_dialogs_page_2", {"dialogs": {"success": True, "response": []}}),
     ):
         gateway = gateway_for(config_factory(), ScriptClient(**response))
         with pytest.raises(GatewayError) as paging_drift:
             if method_name == "list_dialogs":
                 await gateway.list_dialogs()
             else:
-                await gateway.get_dialog("fixture")
+                await gateway.list_dialogs(page=2)
         assert paging_drift.value.code is ErrorCode.CONTRACT_DRIFT
+        assert paging_drift.value.diagnostic == "dialogs:missing_paging"
 
 
 @pytest.mark.asyncio
