@@ -98,7 +98,8 @@ site/               GitHub Pages landing page (Russian), deployed by .github/wor
   responses nested status groups inside a group's `kworks`.
 - `notifications` with nothing to report is `{"success": true}` without `response`.
 - `userKworks`, `offers`, `dialogs`, `inboxes` and `projects` carry `paging` with
-  `page/total/limit/pages`.
+  `page/total/limit/pages`, except an empty first page, which comes without `paging`
+  (seen on `dialogs` for an account with no dialogs, 2026-11).
 - pykwork generic methods pass `**params` as POST params; names must match the Kwork API exactly.
 - `KworkHTTPException` exposes `.status` and `.response_json`; classify with those.
 - kwork.com (`KWORK_SITE=com`) shares the account and token with kwork.ru but has no project

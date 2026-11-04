@@ -670,6 +670,7 @@ class ReadOperations(GatewayBase):
             "dialogs",
             requested_page=page,
             item_count=len(items),
+            empty_first_page_may_omit_paging=True,
         )
         return ItemCollection[DialogRecord](
             items=items,

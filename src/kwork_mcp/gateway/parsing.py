@@ -171,6 +171,7 @@ def _strict_paging(
     requested_page: int | None,
     item_count: int,
     partial_page: Literal["last", "first"] = "last",
+    empty_first_page_may_omit_paging: bool = False,
 ) -> tuple[int, int | None, int | None, int]:
     """Validate Kwork paging metadata against the items actually returned.
 
@@ -180,6 +181,11 @@ def _strict_paging(
     """
     paging = data.get("paging")
     if not isinstance(paging, dict) or not paging:
+        # Some routes omit paging from an empty first page (live: dialogs of an account
+        # with no dialogs). Routes opt in one by one once the shape is confirmed; items
+        # without paging, or an empty later page, still count as drift.
+        if empty_first_page_may_omit_paging and item_count == 0 and requested_page in (None, 1):
+            return 1, None, 0, 0
         raise ContractDriftError(f"{route}:missing_paging")
     page_value = paging.get("page")
     if isinstance(page_value, bool) or not isinstance(page_value, int) or page_value < 1:
