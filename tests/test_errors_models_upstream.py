@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from kwork_mcp.config import KworkConfig
 from kwork_mcp.errors import (
+    ContractDriftError,
     GatewayError,
     classify_upstream_error,
     is_auth_error,
@@ -69,6 +70,15 @@ def test_error_taxonomy(
     info = error.to_info("correlation")
     assert info.code is code
     assert info.correlation_id == "correlation"
+
+
+def test_error_info_exposes_only_contract_drift_diagnostics() -> None:
+    drift = ContractDriftError("dialogs:paging_item_count_inconsistent").to_info("corr")
+    assert drift.code is ErrorCode.CONTRACT_DRIFT
+    assert drift.diagnostic == "dialogs:paging_item_count_inconsistent"
+
+    other = GatewayError(ErrorCode.CLOSED_PROJECT, diagnostic="status=closed").to_info("corr")
+    assert other.diagnostic is None
 
 
 def test_retry_exhaustion_and_error_predicates() -> None:

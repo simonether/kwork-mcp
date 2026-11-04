@@ -105,6 +105,10 @@ class GatewayError(Exception):
             reconciliation_required=self.reconciliation_required,
             retry_after_seconds=self.retry_after_seconds,
             related_write_id=self.related_write_id,
+            # Drift diagnostics are static route:reason codes built in this package,
+            # so exposing them is safe and is the only way a user can report which
+            # contract check broke. Other codes keep their diagnostics internal.
+            diagnostic=self.diagnostic if self.code is ErrorCode.CONTRACT_DRIFT else None,
             correlation_id=correlation_id,
         )
 

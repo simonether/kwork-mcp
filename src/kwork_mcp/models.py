@@ -76,6 +76,13 @@ class ErrorInfo(BaseModel):
         default=None,
         description="Unresolved write that blocks this operation; reconcile it first.",
     )
+    diagnostic: str | None = Field(
+        default=None,
+        description=(
+            "For contract_drift only: which check rejected the Kwork response, as a static "
+            "route:reason code. Carries no Kwork data."
+        ),
+    )
     correlation_id: str
 
 
